@@ -172,7 +172,6 @@ function CompanyForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 export default function CompaniesPage() {
-  const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -180,9 +179,8 @@ export default function CompaniesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const companiesCollectionRef = useMemoFirebase(() => {
-    if (!user) return null;
-    return collection(firestore, `users/${user.uid}/companies`);
-  }, [user, firestore]);
+    return collection(firestore, `companies`);
+  }, [firestore]);
 
   const { data: companies, isLoading } =
     useCollection<Company>(companiesCollectionRef);

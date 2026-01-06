@@ -6,7 +6,8 @@
  * strong security guarantees by default.
  *
  * Data Structure: The data is organized hierarchically to reflect ownership.
- *   - /users/{userId}/companies/{companyId}
+ *   - /users/{userId}/...
+ *   - /companies/{companyId}
  *   - /users/{userId}/constructionActivities/{activityId}
  *   - /users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}
  * A top-level `/reports` collection is included, but its security is locked down
@@ -29,8 +30,8 @@
  * pattern is extended, ensuring authorization checks remain simple and performant.
  *
  * Structural Segregation: User-private data (`constructionActivities`, `progressLogs`)
- * is structurally segregated from potentially collaborative data (`reports`) by
- * placing them in different top-level collections (`/users` vs. `/reports`).
+ * is structurally segregated from potentially collaborative data (`reports`, `companies`) by
+ * placing them in different top-level collections (`/users` vs. `/reports`, `/companies`).
  */
 rules_version = '2';
 service cloud.firestore {
@@ -88,23 +89,23 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if false; // Disallow listing all users.
       allow create: if isSignedIn();
-      allow update: if false;
+      allow update: if isOwner(userId);
       allow delete: if false;
     }
-    
+
+    // ------------------------------------------------------------------------
+    // Top-Level Collection Rules
+    // ------------------------------------------------------------------------
+
     /**
-     * @description Secures a user's private list of companies.
-     *   Only the authenticated owner of this data can perform any action.
-     * @path /users/{userId}/companies/{companyId}
-     * @allow (create) User 'user_abc' creating a new company at
-     *   `/users/user_abc/companies/company_123`.
-     * @deny (get) User 'user_xyz' trying to read a document at
-     *   `/users/user_abc/companies/company_123`.
-     * @principle Restricts access to a user's own data tree.
+     * @description Secures the global list of companies. Any authenticated
+     *   user can read and write to this collection.
+     * @path /companies/{companyId}
+     * @allow (read, write) Any authenticated user.
+     * @principle Allows global access for a shared resource.
      */
-    match /users/{userId}/companies/{companyId} {
-      allow get, list: if isOwner(userId);
-      allow create, update, delete: if isOwner(userId);
+    match /companies/{companyId} {
+      allow read, write: if isSignedIn();
     }
 
     /**
@@ -140,10 +141,6 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId) && request.resource.data.activityId == resource.data.activityId;
       allow delete: if isExistingOwner(userId);
     }
-
-    // ------------------------------------------------------------------------
-    // Top-Level Collection Rules
-    // ------------------------------------------------------------------------
 
     /**
      * @description Secures generated reports.
@@ -189,3 +186,5 @@ service cloud.firestore {
      }
   }
 }
+
+    

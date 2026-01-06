@@ -31,9 +31,9 @@ export async function createUserProfile(
   uid: string,
   data: Omit<UserProfile, 'project'> & { project: null }
 ): Promise<void> {
-  // In a real-world scenario, you'd add a security rule to ensure only admins
-  // or the user themselves (on first write) can create this document.
-  // For this implementation, we allow it, assuming an admin is performing this action.
+  if (!auth.currentUser) {
+    throw new Error('User must be authenticated to create a user profile.');
+  }
 
   if (!uid) {
     throw new Error('A valid User ID (UID) must be provided.');
@@ -86,7 +86,7 @@ export async function addProgressLog(
 type AddCompanyData = Omit<Company, 'id' | 'archived'>;
 
 /**
- * Adds a new company for the current user.
+ * Adds a new company to the global collection.
  * @param auth - The Firebase Auth instance.
  * @param data - The company data to add.
  */
@@ -94,12 +94,11 @@ export async function addCompany(
   auth: Auth,
   data: AddCompanyData
 ): Promise<void> {
-  const userId = auth.currentUser?.uid;
-  if (!userId) {
+  if (!auth.currentUser) {
     throw new Error('User must be authenticated to add a company.');
   }
 
-  const companiesCollectionRef = collection(getDb(), `users/${userId}/companies`);
+  const companiesCollectionRef = collection(getDb(), 'companies');
   const newCompany = {
     ...data,
     archived: false,
@@ -110,7 +109,7 @@ export async function addCompany(
 }
 
 /**
- * Updates an existing company for the current user.
+ * Updates an existing company in the global collection.
  * @param auth - The Firebase Auth instance.
  * @param companyId - The ID of the company to update.
  * @param data - The data to update.
@@ -120,12 +119,11 @@ export async function updateCompany(
   companyId: string,
   data: Partial<Company>
 ): Promise<void> {
-  const userId = auth.currentUser?.uid;
-  if (!userId) {
+  if (!auth.currentUser) {
     throw new Error('User must be authenticated to update a company.');
   }
 
-  const companyDocRef = doc(getDb(), `users/${userId}/companies`, companyId);
+  const companyDocRef = doc(getDb(), 'companies', companyId);
   updateDocumentNonBlocking(companyDocRef, data);
 }
 
@@ -170,3 +168,5 @@ export async function addEquipment(data: AddEquipmentData): Promise<void> {
   };
   addDocumentNonBlocking(equipmentCollectionRef, newEquipment);
 }
+
+    
