@@ -1,0 +1,199 @@
+{
+  "entities": {
+    "ConstructionActivity": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ConstructionActivity",
+      "type": "object",
+      "description": "Represents a specific construction activity or task within a project.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the construction activity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name or title of the construction activity."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the activity."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Planned or actual start date of the activity.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Planned or actual end date of the activity.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the activity (e.g., 'Not Started', 'In Progress', 'Completed')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "startDate",
+        "endDate",
+        "status"
+      ]
+    },
+    "ProgressLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProgressLog",
+      "type": "object",
+      "description": "Represents a log entry documenting the progress of a construction activity.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the progress log entry."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Reference to ConstructionActivity. (Relationship: ConstructionActivity 1:N ProgressLog)"
+        },
+        "logDate": {
+          "type": "string",
+          "description": "Date and time when the progress was logged.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "Textual description of the progress made."
+        },
+        "imageUrls": {
+          "type": "array",
+          "description": "References to images associated with progress log.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "progressPercentage": {
+          "type": "number",
+          "description": "Percentage of the activity that has been completed."
+        }
+      },
+      "required": [
+        "id",
+        "activityId",
+        "logDate",
+        "description",
+        "progressPercentage"
+      ]
+    },
+    "Report": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Report",
+      "type": "object",
+      "description": "Represents a generated progress report for stakeholders.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the report."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the report."
+        },
+        "generationDate": {
+          "type": "string",
+          "description": "Date and time when the report was generated.",
+          "format": "date-time"
+        },
+        "activityIds": {
+          "type": "array",
+          "description": "References to Construction Activities included in the report.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "content": {
+          "type": "string",
+          "description": "The full content of the generated report."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "generationDate",
+        "activityIds",
+        "content"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/constructionActivities/{activityId}",
+        "definition": {
+          "entityName": "ConstructionActivity",
+          "schema": {
+            "$ref": "#/backend/entities/ConstructionActivity"
+          },
+          "description": "Stores construction activities owned by a specific user. Path-based ownership ensures only the user can access these activities.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "activityId",
+              "description": "The unique identifier of the construction activity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}",
+        "definition": {
+          "entityName": "ProgressLog",
+          "schema": {
+            "$ref": "#/backend/entities/ProgressLog"
+          },
+          "description": "Stores progress logs associated with a specific construction activity owned by the user. Continues the ownership hierarchy for secure access.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "activityId",
+              "description": "The unique identifier of the construction activity."
+            },
+            {
+              "name": "logId",
+              "description": "The unique identifier of the progress log entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/reports/{reportId}",
+        "definition": {
+          "entityName": "Report",
+          "schema": {
+            "$ref": "#/backend/entities/Report"
+          },
+          "description": "Stores reports generated by users.  A 'members' map inside the report document can manage collaborative access (if needed).",
+          "params": [
+            {
+              "name": "reportId",
+              "description": "The unique identifier of the report."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the SiteWise Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
+  }
+}
