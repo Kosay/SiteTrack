@@ -13,7 +13,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -264,4 +264,34 @@ export async function deleteUnit(unitId: string): Promise<void> {
     if (!unitId) throw new Error('A valid Unit ID must be provided.');
     const unitDocRef = doc(getDb(), 'units', unitId);
     deleteDocumentNonBlocking(unitDocRef);
+}
+
+
+type AddActivityData = Omit<Activity, 'id'>;
+
+/**
+ * Adds a new activity to a project.
+ */
+export async function addActivity(projectId: string, data: AddActivityData): Promise<void> {
+  if (!projectId) throw new Error('A valid Project ID must be provided.');
+  const activitiesCollectionRef = collection(getDb(), `projects/${projectId}/activities`);
+  addDocumentNonBlocking(activitiesCollectionRef, { ...data, createdAt: serverTimestamp() });
+}
+
+/**
+ * Updates an activity within a project.
+ */
+export async function updateActivity(projectId: string, activityId: string, data: Partial<Activity>): Promise<void> {
+  if (!projectId || !activityId) throw new Error('Project ID and Activity ID are required.');
+  const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
+  updateDocumentNonBlocking(activityDocRef, { ...data, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Deletes an activity from a project.
+ */
+export async function deleteActivity(projectId: string, activityId: string): Promise<void> {
+  if (!projectId || !activityId) throw new Error('Project ID and Activity ID are required.');
+  const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
+  deleteDocumentNonBlocking(activityDocRef);
 }

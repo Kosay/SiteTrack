@@ -12,6 +12,7 @@ import {
   Truck,
   Briefcase,
   Database,
+  ListChecks,
 } from 'lucide-react';
 
 import {
@@ -32,6 +33,7 @@ const navItems = [
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
   { label: 'Projects', href: '/projects', icon: Briefcase },
+  { label: 'Activities', href: '/activities', icon: ListChecks },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
   { label: 'Seed Data', href: '/seed', icon: Database },
