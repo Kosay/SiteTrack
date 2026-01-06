@@ -14,7 +14,33 @@
           "description": "The user's role in the application (e.g., 'Admin', 'Manager')."
         }
       },
-      "required": ["name", "role"]
+      "required": [
+        "name",
+        "role"
+      ]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Represents a company or organization.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the company."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the company."
+        },
+        "archived": {
+          "type": "boolean",
+          "description": "Whether the company is archived."
+        }
+      },
+      "required": [
+        "name",
+        "archived"
+      ]
     },
     "ConstructionActivity": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -157,10 +183,30 @@
             "$ref": "#/backend/entities/UserProfile"
           },
           "description": "Stores public-facing profile information for a user, such as name and role.",
-           "params": [
+          "params": [
             {
               "name": "userId",
               "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores companies owned by a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the company."
             }
           ]
         }

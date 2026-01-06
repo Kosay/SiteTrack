@@ -6,6 +6,7 @@
  * strong security guarantees by default.
  *
  * Data Structure: The data is organized hierarchically to reflect ownership.
+ *   - /users/{userId}/companies/{companyId}
  *   - /users/{userId}/constructionActivities/{activityId}
  *   - /users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}
  * A top-level `/reports` collection is included, but its security is locked down
@@ -89,6 +90,21 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if false;
       allow delete: if false;
+    }
+    
+    /**
+     * @description Secures a user's private list of companies.
+     *   Only the authenticated owner of this data can perform any action.
+     * @path /users/{userId}/companies/{companyId}
+     * @allow (create) User 'user_abc' creating a new company at
+     *   `/users/user_abc/companies/company_123`.
+     * @deny (get) User 'user_xyz' trying to read a document at
+     *   `/users/user_abc/companies/company_123`.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId}/companies/{companyId} {
+      allow get, list: if isOwner(userId);
+      allow create, update, delete: if isOwner(userId);
     }
 
     /**

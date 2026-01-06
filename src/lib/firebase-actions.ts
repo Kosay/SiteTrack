@@ -3,14 +3,16 @@
 import {
   addDoc,
   collection,
+  doc,
   serverTimestamp,
+  updateDoc,
   type Auth,
   type Firestore,
 } from 'firebase/firestore';
 import { getFirestore } from 'firebase/firestore';
 import { getFirebaseApp } from '@/firebase/provider';
-import type { ProgressLog } from './types';
-import { addDocumentNonBlocking } from '@/firebase';
+import type { ProgressLog, Company } from './types';
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 
 // Helper to get Firestore instance
 function getDb(): Firestore {
@@ -48,4 +50,50 @@ export async function addProgressLog(
 
   // Using non-blocking update
   addDocumentNonBlocking(logsCollectionRef, newLog);
+}
+
+type AddCompanyData = Omit<Company, 'id' | 'archived'>;
+
+/**
+ * Adds a new company for the current user.
+ * @param auth - The Firebase Auth instance.
+ * @param data - The company data to add.
+ */
+export async function addCompany(
+  auth: Auth,
+  data: AddCompanyData
+): Promise<void> {
+  const userId = auth.currentUser?.uid;
+  if (!userId) {
+    throw new Error('User must be authenticated to add a company.');
+  }
+
+  const companiesCollectionRef = collection(getDb(), `users/${userId}/companies`);
+  const newCompany = {
+    ...data,
+    archived: false,
+    createdAt: serverTimestamp(),
+  };
+
+  addDocumentNonBlocking(companiesCollectionRef, newCompany);
+}
+
+/**
+ * Updates an existing company for the current user.
+ * @param auth - The Firebase Auth instance.
+ * @param companyId - The ID of the company to update.
+ * @param data - The data to update.
+ */
+export async function updateCompany(
+  auth: Auth,
+  companyId: string,
+  data: Partial<Company>
+): Promise<void> {
+  const userId = auth.currentUser?.uid;
+  if (!userId) {
+    throw new Error('User must be authenticated to update a company.');
+  }
+
+  const companyDocRef = doc(getDb(), `users/${userId}/companies`, companyId);
+  updateDocumentNonBlocking(companyDocRef, data);
 }

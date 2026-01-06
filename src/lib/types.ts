@@ -5,6 +5,13 @@ export interface UserProfile {
   role: string;
 }
 
+export interface Company {
+  id: string;
+  name: string;
+  description: string;
+  archived: boolean;
+}
+
 export interface ConstructionActivity {
   id: string;
   name: string;
