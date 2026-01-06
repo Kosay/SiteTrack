@@ -258,9 +258,101 @@ const Step3_Team = ({ formData, users, isLoadingUsers, handleMultiSelectChange, 
     );
 };
 
+// Reusable Role Selection Card
+const RoleSelectionCard = ({ roleName, roleKey, allUsers, selectedIds, onAdd, onRemove, userMap }) => {
+    const availableUsers = useMemo(() => {
+        const filtered = allUsers.filter(u => !selectedIds.includes(u.id));
+        return filtered;
+    }, [allUsers, selectedIds]);
+
+    return (
+        <div className="space-y-3">
+            <Label className="flex items-center justify-between">
+                <span>{roleName}</span>
+                <UserSelectionDialog 
+                    users={availableUsers}
+                    title={`Add ${roleName.slice(0, -1)}`}
+                    onSelect={(userId) => onAdd(roleKey, userId)}
+                    triggerButton={<Button variant="ghost" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>}
+                />
+            </Label>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+              {selectedIds.length > 0 ? selectedIds.map(userId => (
+                 <div key={userId} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                    <div className="flex items-center gap-3">
+                        <UserIcon className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">{userMap.get(userId) || 'Unknown User'}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(roleKey, userId)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                </div>
+              )) : <p className="text-sm text-muted-foreground text-center py-2">No users assigned.</p>}
+            </div>
+        </div>
+    );
+}
+
+// Step 4 Component
+const Step4_Support = ({ formData, users, isLoadingUsers, handleMultiSelectChange, userMap }) => {
+    
+    const roles = [
+        { name: 'Safety Officers', key: 'safetyOfficerIds', position: 'Safety Officer' },
+        { name: 'Document Controllers', key: 'docControllerIds', position: 'Document Controller' },
+        { name: 'Logistics', key: 'logisticIds', position: 'Logistic' },
+    ];
+    
+    const usersByRole = useMemo(() => {
+        const result = {};
+        roles.forEach(role => {
+            result[role.key] = users?.filter(u => u.position === role.position) || [];
+        });
+        return result;
+    }, [users]);
+    
+    const addRoleMember = (roleKey, userId) => {
+        const currentIds = formData[roleKey] || [];
+        if (!currentIds.includes(userId)) {
+            handleMultiSelectChange(roleKey, [...currentIds, userId]);
+        }
+    };
+
+    const removeRoleMember = (roleKey, userId) => {
+        const currentIds = formData[roleKey] || [];
+        handleMultiSelectChange(roleKey, currentIds.filter(id => id !== userId));
+    };
+
+    if (isLoadingUsers) return <LoaderCircle className="animate-spin" />;
+
+    return (
+         <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 4: Select Support Staff (Optional)</CardTitle>
+                <CardDescription>
+                    Assign other key personnel for support roles on this project. You can skip this step.
+                </CardDescription>
+            </CardHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {roles.map(role => (
+                    <RoleSelectionCard 
+                        key={role.key}
+                        roleName={role.name}
+                        roleKey={role.key}
+                        allUsers={usersByRole[role.key]}
+                        selectedIds={formData[role.key] || []}
+                        onAdd={addRoleMember}
+                        onRemove={removeRoleMember}
+                        userMap={userMap}
+                    />
+                ))}
+            </div>
+         </div>
+    );
+};
+
 
 // Placeholder components for other steps
-const Step4 = () => <div><CardTitle>Step 4: Select Other Users</CardTitle></div>;
 const Step5 = () => <div><CardTitle>Step 5: Define Units</CardTitle></div>;
 const Step6 = () => <div><CardTitle>Step 6: Define Zones</CardTitle></div>;
 const Step7 = () => <div><CardTitle>Step 7: Define Activities</CardTitle></div>;
@@ -273,6 +365,9 @@ export default function NewProjectWizard() {
   const [formData, setFormData] = useState({
     cmIds: [],
     engineerIds: [],
+    safetyOfficerIds: [],
+    docControllerIds: [],
+    logisticIds: [],
   });
   const firestore = useFirestore();
 
@@ -288,7 +383,7 @@ export default function NewProjectWizard() {
     { name: 'Basics', component: (props) => <Step1_ProjectBasics {...props} /> },
     { name: 'Leadership', component: (props) => <Step2_Leadership {...props} /> },
     { name: 'Team', component: (props) => <Step3_Team {...props} /> },
-    { name: 'Support', component: Step4 },
+    { name: 'Support', component: (props) => <Step4_Support {...props} /> },
     { name: 'Units', component: Step5 },
     { name: 'Zones', component: Step6 },
     { name: 'Activities', component: Step7 },
@@ -361,13 +456,20 @@ export default function NewProjectWizard() {
                 </Button>
               ) : <div />}
               
-              {currentStep < steps.length - 1 ? (
-                <Button onClick={handleNext}>
-                  Next <ArrowRight className="ml-2" />
-                </Button>
-              ) : (
-                <Button>Review & Save</Button>
-              )}
+              <div className="flex items-center gap-2">
+                {currentStep === 3 && ( // Only show Skip button on Step 4 (index 3)
+                   <Button variant="ghost" onClick={handleNext}>
+                    Skip
+                   </Button>
+                )}
+                {currentStep < steps.length - 1 ? (
+                  <Button onClick={handleNext}>
+                    Next <ArrowRight className="ml-2" />
+                  </Button>
+                ) : (
+                  <Button>Review & Save</Button>
+                )}
+              </div>
             </CardFooter>
           </Card>
         </div>
@@ -375,3 +477,5 @@ export default function NewProjectWizard() {
     </div>
   );
 }
+
+    
