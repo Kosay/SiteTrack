@@ -7,8 +7,8 @@ export interface Company {
     contact?: string; // Made optional
     address?: string; // Made optional
     logoUrl?: string; // Made optional
-    directorId?: string;
-    pmId?: string;
+    directorIds?: string[];
+    pmIds?: string[];
     createdAt: any; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
     archived?: boolean;
@@ -282,3 +282,5 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
+
+    

@@ -8,11 +8,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft,
-  Building,
-  ChevronDown,
   LoaderCircle,
   Trash2,
   User,
+  PlusCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +38,6 @@ import type { Company, User as SiteUser } from '@/lib/types';
 import { updateCompany } from '@/lib/firebase-actions';
 import Link from 'next/link';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 
@@ -50,8 +48,8 @@ const formSchema = z.object({
   mobile: z.string().optional(),
   address: z.string().optional(),
   description: z.string().optional(),
-  directorId: z.string().optional(),
-  pmId: z.string().optional(),
+  directorIds: z.array(z.string()).optional(),
+  pmIds: z.array(z.string()).optional(),
 });
 
 type CompanyFormValues = z.infer<typeof formSchema>;
@@ -60,14 +58,15 @@ interface UserSelectionDialogProps {
   users: SiteUser[];
   onSelect: (userId: string) => void;
   title: string;
+  triggerButton: React.ReactNode;
 }
 
-function UserSelectionDialog({ users, onSelect, title }: UserSelectionDialogProps) {
+function UserSelectionDialog({ users, onSelect, title, triggerButton }: UserSelectionDialogProps) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Change</Button>
+        {triggerButton}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -121,6 +120,10 @@ export default function EditCompanyPage() {
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      directorIds: [],
+      pmIds: [],
+    }
   });
 
   useEffect(() => {
@@ -132,8 +135,8 @@ export default function EditCompanyPage() {
         mobile: company.mobile || '',
         address: company.address || '',
         description: company.description || '',
-        directorId: company.directorId || '',
-        pmId: company.pmId || '',
+        directorIds: company.directorIds || [],
+        pmIds: company.pmIds || [],
       });
     }
   }, [company, form]);
@@ -148,9 +151,33 @@ export default function EditCompanyPage() {
   );
   
   const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+  
+  const watchedDirectorIds = form.watch('directorIds') || [];
+  const watchedPmIds = form.watch('pmIds') || [];
 
-  const currentDirectorId = form.watch('directorId');
-  const currentPmId = form.watch('pmId');
+  const addRoleMember = (role: 'director' | 'pm', userId: string) => {
+    if (role === 'director') {
+        const currentIds = form.getValues('directorIds') || [];
+        if(!currentIds.includes(userId)) {
+            form.setValue('directorIds', [...currentIds, userId]);
+        }
+    } else {
+        const currentIds = form.getValues('pmIds') || [];
+        if(!currentIds.includes(userId)) {
+            form.setValue('pmIds', [...currentIds, userId]);
+        }
+    }
+  }
+
+  const removeRoleMember = (role: 'director' | 'pm', userId: string) => {
+     if (role === 'director') {
+        const currentIds = form.getValues('directorIds') || [];
+        form.setValue('directorIds', currentIds.filter(id => id !== userId));
+    } else {
+        const currentIds = form.getValues('pmIds') || [];
+        form.setValue('pmIds', currentIds.filter(id => id !== userId));
+    }
+  }
 
   const onSubmit = async (values: CompanyFormValues) => {
     if (!auth) {
@@ -263,27 +290,55 @@ export default function EditCompanyPage() {
              <Card>
                 <CardHeader>
                   <CardTitle>Company Roles</CardTitle>
-                   <CardDescription>Assign key personnel to this company.</CardDescription>
+                   <CardDescription>Manage key personnel for this company.</CardDescription>
                 </CardHeader>
                  <CardContent className="space-y-6">
                     <div className="space-y-3">
-                        <Label>Director</Label>
-                        <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                            <div className="flex items-center gap-3">
-                                <User className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm font-medium">{currentDirectorId ? userMap.get(currentDirectorId) : 'Not Assigned'}</span>
+                        <Label className="flex items-center justify-between">
+                            <span>Directors</span>
+                             <UserSelectionDialog 
+                                users={directors.filter(d => !watchedDirectorIds.includes(d.id))} 
+                                title="Add Director" 
+                                onSelect={(userId) => addRoleMember('director', userId)}
+                                triggerButton={<Button variant="ghost" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>}
+                                />
+                        </Label>
+                        <div className="space-y-2">
+                          {watchedDirectorIds.length > 0 ? watchedDirectorIds.map(userId => (
+                             <div key={userId} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                                <div className="flex items-center gap-3">
+                                    <User className="h-5 w-5 text-muted-foreground" />
+                                    <span className="text-sm font-medium">{userMap.get(userId) || 'Unknown User'}</span>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRoleMember('director', userId)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                             </div>
-                            <UserSelectionDialog users={directors} title="Select Director" onSelect={(userId) => form.setValue('directorId', userId)} />
+                          )) : <p className="text-sm text-muted-foreground text-center py-2">No directors assigned.</p>}
                         </div>
                     </div>
                      <div className="space-y-3">
-                        <Label>Project Manager (PM)</Label>
-                         <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
-                             <div className="flex items-center gap-3">
-                                <User className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm font-medium">{currentPmId ? userMap.get(currentPmId) : 'Not Assigned'}</span>
+                         <Label className="flex items-center justify-between">
+                            <span>Project Managers (PMs)</span>
+                            <UserSelectionDialog 
+                                users={projectManagers.filter(pm => !watchedPmIds.includes(pm.id))}
+                                title="Add Project Manager" 
+                                onSelect={(userId) => addRoleMember('pm', userId)}
+                                triggerButton={<Button variant="ghost" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>}
+                                />
+                        </Label>
+                        <div className="space-y-2">
+                          {watchedPmIds.length > 0 ? watchedPmIds.map(userId => (
+                             <div key={userId} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                                <div className="flex items-center gap-3">
+                                    <User className="h-5 w-5 text-muted-foreground" />
+                                    <span className="text-sm font-medium">{userMap.get(userId) || 'Unknown User'}</span>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRoleMember('pm', userId)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                             </div>
-                            <UserSelectionDialog users={projectManagers} title="Select Project Manager" onSelect={(userId) => form.setValue('pmId', userId)} />
+                          )) : <p className="text-sm text-muted-foreground text-center py-2">No PMs assigned.</p>}
                         </div>
                     </div>
                  </CardContent>
@@ -304,3 +359,5 @@ export default function EditCompanyPage() {
     </div>
   );
 }
+
+    
