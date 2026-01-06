@@ -70,7 +70,10 @@
         "approvedWork": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
-        "archived": { "type": "boolean" }
+        "archived": { "type": "boolean" },
+        "address": { "type": "string" },
+        "googleMapsUrl": { "type": "string", "format": "uri" },
+        "kmlUrl": { "type": "string", "format": "uri" }
       },
       "required": ["companyId", "name", "directorId", "pmId", "status", "createdAt"]
     },

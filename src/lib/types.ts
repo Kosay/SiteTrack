@@ -42,6 +42,9 @@ export interface Project {
     createdAt: any; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp;
     archived?: boolean;
+    address?: string;
+    googleMapsUrl?: string;
+    kmlUrl?: string;
 }
 
 export interface Equipment {
