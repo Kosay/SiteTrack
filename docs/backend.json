@@ -1,398 +1,255 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "User Profile",
-      "description": "Represents the profile data for a user.",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The user's full name."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "role": {
-          "type": "string",
-          "description": "The user's role in the application (e.g., 'Admin', 'Manager')."
-        },
-        "project": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "The ID of the project the user is assigned to. Can be null if unassigned."
-        }
-      },
-      "required": [
-        "name",
-        "email",
-        "role"
-      ]
-    },
     "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Company",
-      "description": "Represents a company or organization.",
       "type": "object",
+      "description": "Represents a company with its details.",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the company."
-        },
-        "description": {
-          "type": "string",
-          "description": "A brief description of the company."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The contact email for the company."
-        },
-        "mobile": {
-          "type": "string",
-          "description": "The contact mobile number for the company."
-        },
-        "contactPerson": {
-          "type": "string",
-          "description": "The primary contact person for the company."
-        },
-        "address": {
-          "type": "string",
-          "description": "The physical address of the company."
-        },
-        "archived": {
-          "type": "boolean",
-          "description": "Whether the company is archived."
-        }
+        "id": { "type": "string", "description": "Unique identifier for the Company entity." },
+        "name": { "type": "string", "description": "Name of the company." },
+        "contact": { "type": "string", "description": "Name of the contact person." },
+        "address": { "type": "string", "description": "Address of the company." },
+        "logoUrl": { "type": "string", "format": "uri", "description": "URL of the company logo." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "name",
-        "archived"
-      ]
+      "required": ["name", "contact", "address", "logoUrl", "createdAt"]
     },
-    "ConstructionActivity": {
+    "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ConstructionActivity",
+      "title": "User",
       "type": "object",
-      "description": "Represents a specific construction activity or task within a project.",
+      "description": "Represents a user's core profile and their organizational membership.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the construction activity."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name or title of the construction activity."
-        },
-        "description": {
-          "type": "string",
-          "description": "Detailed description of the activity."
-        },
-        "startDate": {
-          "type": "string",
-          "description": "Planned or actual start date of the activity.",
-          "format": "date-time"
-        },
-        "endDate": {
-          "type": "string",
-          "description": "Planned or actual end date of the activity.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "Current status of the activity (e.g., 'Not Started', 'In Progress', 'Completed')."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "position": { "type": "string", "enum": ["Admin", "CEO", "Director", "PM", "CM", "Engineer", "General Foreman", "Safety Officer", "Safety Manager", "Logistic", "Document Controller", "Accountant", "progress_control"] },
+        "companyId": { "type": "string" },
+        "salaryNumber": { "type": "string", "description": "Unique Salary Number or Series Number for the employee." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "startDate",
-        "endDate",
-        "status"
-      ]
+      "required": ["name", "email", "position", "companyId", "createdAt"]
     },
-    "ProgressLog": {
+    "UserProjectMembership": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ProgressLog",
+      "title": "User Project Membership",
       "type": "object",
-      "description": "Represents a log entry documenting the progress of a construction activity.",
+      "description": "A record showing that a user is a member of a specific project. Stored in a subcollection under the user.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the progress log entry."
-        },
-        "activityId": {
-          "type": "string",
-          "description": "Reference to ConstructionActivity. (Relationship: ConstructionActivity 1:N ProgressLog)"
-        },
-        "logDate": {
-          "type": "string",
-          "description": "Date and time when the progress was logged.",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string",
-          "description": "Textual description of the progress made."
-        },
-        "imageUrls": {
-          "type": "array",
-          "description": "References to images associated with progress log.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "progressPercentage": {
-          "type": "number",
-          "description": "Percentage of the activity that has been completed."
-        }
+        "role": { "type": "string" },
+        "companyId": { "type": "string" },
+        "projectName": { "type": "string", "description": "Denormalized project name for fast display." },
+        "projectStatus": { "type": "string", "enum": ["active", "closed"], "description": "Denormalized project status." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "activityId",
-        "logDate",
-        "description",
-        "progressPercentage"
-      ]
+      "required": ["role", "companyId", "projectName"]
     },
-    "Report": {
+    "Project": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Report",
+      "title": "Project",
       "type": "object",
-      "description": "Represents a generated progress report for stakeholders.",
+      "description": "Represents a construction project.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the report."
-        },
-        "title": {
-          "type": "string",
-          "description": "Title of the report."
-        },
-        "generationDate": {
-          "type": "string",
-          "description": "Date and time when the report was generated.",
-          "format": "date-time"
-        },
-        "activityIds": {
-          "type": "array",
-          "description": "References to Construction Activities included in the report.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "content": {
-          "type": "string",
-          "description": "The full content of the generated report."
-        }
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "name": { "type": "string" },
+        "directorId": { "type": "string" },
+        "pmId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "closed"] },
+        "totalWork": { "type": "number" },
+        "doneWork": { "type": "number" },
+        "approvedWork": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "title",
-        "generationDate",
-        "activityIds",
-        "content"
-      ]
+      "required": ["companyId", "name", "directorId", "pmId", "status", "createdAt"]
     },
-    "EquipmentType": {
-      "title": "Equipment Type",
-      "description": "Represents a type of construction equipment.",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the equipment type (e.g., 'JCB', 'Bobcat')."
-        }
-      },
-      "required": [
-        "name"
-      ]
+    "ProjectMember": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Project Member",
+        "type": "object",
+        "description": "A record showing a user's role on a project. Stored in a subcollection under the project.",
+        "properties": {
+            "role": { "type": "string", "enum": ["director", "pm", "cm", "engineer", "foreman", "safety", "logistics", "doc_controller", "accounting"] },
+            "companyId": { "type": "string" },
+            "userName": { "type": "string", "description": "Denormalized user name for fast display." },
+            "position": { "type": "string", "description": "Denormalized user position." },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["role", "companyId", "userName", "position"]
     },
     "Equipment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Equipment",
-      "description": "Represents a single piece of construction equipment.",
       "type": "object",
+      "description": "A denormalized equipment document for fast reads.",
       "properties": {
-        "plateNumber": {
-          "type": "string",
-          "description": "The unique plate number or identifier for the equipment."
-        },
-        "typeId": {
-          "type": "string",
-          "description": "A reference to the ID in the 'equipment_names' collection."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current operational status of the equipment.",
-          "enum": [
-            "Working",
-            "Broken",
-            "In Garage"
-          ]
-        },
-        "assignedTo": {
-          "type": "string",
-          "description": "The ID of the user this equipment is assigned to."
-        },
-        "projectId": {
-          "type": "string",
-          "description": "The ID of the project this equipment is currently working on."
-        },
-        "thirdPartyCertificateDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The expiry date of the third-party certification."
-        },
-        "ownershipCertificateDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The expiry date of the ownership certification."
-        }
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "projectName": { "type": "string", "description": "Denormalized for listing." },
+        "equipmentNameId": { "type": "string" },
+        "equipmentName": { "type": "string", "description": "Denormalized for listing." },
+        "plateNumber": { "type": "string" },
+        "pmId": { "type": "string" },
+        "pmName": { "type": "string", "description": "Denormalized for listing." },
+        "assigneeId": { "type": "string" },
+        "assigneeName": { "type": "string", "description": "Denormalized for listing." },
+        "situation": { "type": "string", "enum": ["Working at site", "Broke down at site", "In garage"] },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "ownershipType": { "type": "string", "enum": ["Company", "Rent"] },
+        "ownerCompanyId": { "type": "string", "description": "ID of the company that owns this equipment, if not rented." },
+        "rentalOwnerCompany": { "type": "string" },
+        "rentalContactPerson": { "type": "string" },
+        "rentalMobile": { "type": "string" },
+        "rentalPhone": { "type": "string" },
+        "rentalMonthlyRent": { "type": "number" },
+        "rentalAnnualRent": { "type": "number" },
+        "rentalStartDate": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "plateNumber",
-        "typeId",
-        "status"
-      ]
+      "required": ["companyId", "projectId", "equipmentNameId", "plateNumber", "pmId", "assigneeId", "situation", "ownershipType"]
+    },
+     "EquipmentLog": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Equipment Log",
+        "type": "object",
+        "description": "An audit log entry for a change to an equipment record.",
+        "properties": {
+            "id": { "type": "string" },
+            "timestamp": { "type": "string", "format": "date-time" },
+            "userId": { "type": "string" },
+            "userName": { "type": "string" },
+            "eventType": { "type": "string", "enum": ["Status Change", "Assignment Change", "Breakdown", "Repair"] },
+            "details": { "type": "object" }
+        },
+        "required": ["timestamp", "userId", "userName", "eventType", "details"]
+    },
+    "EquipmentName": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Equipment Name", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["name"]
+    },
+    "Zone": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Zone", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["name"]
+    },
+    "Activity": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Activity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "code": { "type": "string" }, "description": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" } }, "required": ["name", "code", "description"]
+    },
+    "SubActivity": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "SubActivity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "unit": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" } }, "required": ["name", "description", "unit", "totalWork"]
+    },
+    "SubActivityZoneQuantity": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "SubActivityZoneQuantity", "type": "object", "properties": { "zoneId": { "type": "string" }, "quantity": { "type": "number" } }, "required": ["zoneId", "quantity"]
+    },
+    "ProgressReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Progress Report", "type": "object",
+      "description": "Source of truth for a single progress submission.",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "activityId": { "type": "string" },
+        "subActivityId": { "type": "string" },
+        "zoneId": { "type": "string" },
+        "engineerId": { "type": "string" },
+        "cmId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "date": { "type": "string", "format": "date-time", "description": "Actual work date." },
+        "diaryDate": { "type": "string", "description": "YYYYMMDD format for indexing." },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Pending", "A", "B", "C"], "description": "A=Approved, B=Approved w/ Remarks, C=Rejected" },
+        "inspectionStatus": { "type": "string", "enum": ["Pending", "Complete"] },
+        "gradeAQuantity": { "type": "number" },
+        "gradeBQuantity": { "type": "number" },
+        "gradeCQuantity": { "type": "number" },
+        "inspectionDate": { "type": "string", "format": "date-time" },
+        "inspectorRemarks": { "type": "string" },
+        "wirUserId": { "type": "string" }
+      },
+      "required": ["companyId", "projectId", "activityId", "subActivityId", "zoneId", "engineerId", "cmId", "quantity", "date", "diaryDate", "status"]
+    },
+    "ReportIndex": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Report Index", "type": "object",
+        "description": "A denormalized, global index for quickly listing progress reports.",
+        "properties": {
+            "id": { "type": "string" }, "companyId": { "type": "string" }, "projectId": { "type": "string" }, "projectName": { "type": "string" }, "activityName": { "type": "string" }, "subActivityName": { "type": "string" }, "zoneName": { "type": "string" }, "engineerName": { "type": "string" }, "cmName": { "type": "string" }, "quantity": { "type": "number" }, "date": { "type": "string", "format": "date-time" }, "createdAt": { "type": "string", "format": "date-time" }, "sourcePath": { "type": "string", "description": "Path to the original report document." }
+        },
+        "required": ["companyId", "projectId", "projectName", "date", "createdAt", "sourcePath"]
+    },
+    "AdminDashboardSummary": {
+        "$schema": "http://json-schema.org/draft-07/schema#", "title": "Admin Dashboard Summary", "type": "object", "properties": { "companiesCount": { "type": "number" }, "projectsActiveCount": { "type": "number" }, "equipmentActiveCount": { "type": "number" }, "updatedAt": { "type": "string", "format": "date-time" } }
+    },
+    "CompanyDashboardSummary": {
+        "$schema": "http://json-schema.org/draft-07/schema#", "title": "Company Dashboard Summary", "type": "object", "properties": { "activeProjects": { "type": "number" }, "totalEquipment": { "type": "number" }, "equipmentWorking": { "type": "number" }, "equipmentBroken": { "type": "number" }, "equipmentGarage": { "type": "number" }, "updatedAt": { "type": "string", "format": "date-time" } }
+    },
+    "ProjectDashboardSummary": {
+        "$schema": "http://json-schema.org/draft-07/schema#", "title": "Project Dashboard Summary", "type": "object", "properties": { "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "progressPercent": { "type": "number" }, "lastReportAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" } }
+    },
+     "Invitation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Invitation", "type": "object", "description": "Represents an invitation for a new user to sign up.",
+      "properties": {
+        "id": { "type": "string" }, "code": { "type": "string" }, "email": { "type": "string", "format": "email" }, "name": { "type": "string" }, "position": { "type": "string" }, "companyId": { "type": "string" }, "status": { "type": "string", "enum": ["pending", "completed"] }, "createdAt": { "type": "string", "format": "date-time" }, "creatorId": { "type": "string" }, "creatorName": { "type": "string" }, "completedAt": { "type": "string", "format": "date-time" }, "usedBy": { "type": "string" }
+      },
+      "required": ["code", "email", "name", "position", "companyId", "status", "createdAt", "creatorId", "creatorName"]
+    },
+    "Document": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Document",
+      "type": "object",
+      "description": "Represents a document submitted for approval.",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "pmId": { "type": "string" },
+        "type": { "type": "string", "enum": ["Permit", "Document", "Payment"] },
+        "status": { "type": "string", "enum": ["Pending", "Under Review", "Approved"] },
+        "documentDate": { "type": "string", "format": "date-time" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "pmApprovedAt": { "type": "string", "format": "date-time" },
+        "pmApproverId": { "type": "string" },
+        "adminApprovedAt": { "type": "string", "format": "date-time" },
+        "adminApproverId": { "type": "string" }
+      },
+      "required": ["projectId", "creatorId", "pmId", "type", "status", "documentDate", "createdAt"]
     }
   },
-  "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
-  },
+  "auth": { "providers": ["password", "anonymous"] },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/backend/entities/UserProfile"
-          },
-          "description": "Stores public-facing profile information for a user, such as name and role.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/companies/{companyId}",
-        "definition": {
-          "entityName": "Company",
-          "schema": {
-            "$ref": "#/backend/entities/Company"
-          },
-          "description": "Stores companies in a global collection.",
-          "params": [
-            {
-              "name": "companyId",
-              "description": "The unique identifier of the company."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/constructionActivities/{activityId}",
-        "definition": {
-          "entityName": "ConstructionActivity",
-          "schema": {
-            "$ref": "#/backend/entities/ConstructionActivity"
-          },
-          "description": "Stores construction activities owned by a specific user. Path-based ownership ensures only the user can access these activities.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "activityId",
-              "description": "The unique identifier of the construction activity."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}",
-        "definition": {
-          "entityName": "ProgressLog",
-          "schema": {
-            "$ref": "#/backend/entities/ProgressLog"
-          },
-          "description": "Stores progress logs associated with a specific construction activity owned by the user. Continues the ownership hierarchy for secure access.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "activityId",
-              "description": "The unique identifier of the construction activity."
-            },
-            {
-              "name": "logId",
-              "description": "The unique identifier of the progress log entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/reports/{reportId}",
-        "definition": {
-          "entityName": "Report",
-          "schema": {
-            "$ref": "#/backend/entities/Report"
-          },
-          "description": "Stores reports generated by users.  A 'members' map inside the report document can manage collaborative access (if needed).",
-          "params": [
-            {
-              "name": "reportId",
-              "description": "The unique identifier of the report."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/equipment_names/{equipmentTypeId}",
-        "definition": {
-          "entityName": "EquipmentType",
-          "schema": {
-            "$ref": "#/backend/entities/EquipmentType"
-          },
-          "description": "Stores the list of available equipment types, accessible globally.",
-          "params": [
-            {
-              "name": "equipmentTypeId",
-              "description": "The unique identifier for the equipment type."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/equipment/{equipmentId}",
-        "definition": {
-          "entityName": "Equipment",
-          "schema": {
-            "$ref": "#/backend/entities/Equipment"
-          },
-          "description": "Denormalized collection for fast equipment listing and filtering across the entire organization.",
-          "params": [
-            {
-              "name": "equipmentId",
-              "description": "The unique identifier for the piece of equipment."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the Site Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}`: Stores public user profiles. Access is controlled so that users can only modify their own profiles, but other authenticated users might be able to read public information.\n*   `/companies/{companyId}`: Global collection for companies.\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n*   `/equipment_names/{equipmentTypeId}`: This is a global collection that all authenticated users can read from, but only admins should be able to write to. It provides a centralized list of equipment types for use throughout the application.\n*   `/equipment/{equipmentId}`: This is a top-level, denormalized collection to allow for efficient querying and listing of all equipment across the organization, regardless of which user, company, or project owns it. Security rules will determine who can read or write to this collection.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
+    "/companies/{companyId}": { "schema": { "$ref": "#/entities/Company" } },
+    "/users/{userId}": { "schema": { "$ref": "#/entities/User" } },
+    "/users/{userId}/project_memberships/{projectId}": { "schema": { "$ref": "#/entities/UserProjectMembership" } },
+    "/projects/{projectId}": { "schema": { "$ref": "#/entities/Project" } },
+    "/projects/{projectId}/members/{userId}": { "schema": { "$ref": "#/entities/ProjectMember" } },
+    "/equipment/{equipmentId}": { "schema": { "$ref": "#/entities/Equipment" } },
+    "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
+    "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },
+    "/invitations/{invitationId}": { "schema": { "$ref": "#/entities/Invitation" } },
+    "/projects/{projectId}/zones/{zoneId}": { "schema": { "$ref": "#/entities/Zone" } },
+    "/projects/{projectId}/activities/{activityId}": { "schema": { "$ref": "#/entities/Activity" } },
+    "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivity" } },
+    "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}/zoneQuantities/{zoneId}": { "schema": { "$ref": "#/entities/SubActivityZoneQuantity" } },
+    "/projects/{projectId}/progress_reports/{reportId}": { "schema": { "$ref": "#/entities/ProgressReport" } },
+    "/documents/{documentId}": { "schema": { "$ref": "#/entities/Document" } },
+    "/report_index/{reportId}": { "schema": { "$ref": "#/entities/ReportIndex" } },
+    "/admin_data/summary": { "schema": { "$ref": "#/entities/AdminDashboardSummary" } },
+    "/companies/{companyId}/dashboards/summary": { "schema": { "$ref": "#/entities/CompanyDashboardSummary" } },
+    "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
   }
 }
-
     

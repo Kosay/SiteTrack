@@ -1,190 +1,54 @@
-/**
- * Core Philosophy: This ruleset enforces a strict, path-based user-ownership model.
- * All user-generated content, such as construction activities and their progress logs,
- * is nested under a path containing the user's unique ID (`/users/{userId}`).
- * This ensures that a user can only ever access their own data tree, providing
- * strong security guarantees by default.
- *
- * Data Structure: The data is organized hierarchically to reflect ownership.
- *   - /users/{userId}/...
- *   - /companies/{companyId}
- *   - /users/{userId}/constructionActivities/{activityId}
- *   - /users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}
- * A top-level `/reports` collection is included, but its security is locked down
- * pending schema changes to support collaborative or owner-based access.
- *
- * Key Security Decisions:
- * - User data is strictly segregated by the `/users/{userId}` path. A user cannot
- *   read, write, or even know about another user's data.
- * - Listing documents is only permitted within a user's own data tree. Global
- *   listing of any user-specific collection is prohibited.
- * - The `/reports` collection is fully locked down. The provided schema for the
- *   'Report' entity lacks a required `ownerId` or `members` field, making it
- *   impossible to safely implement write or collaborative read rules. The rules
- *   explicitly deny all access until the schema is updated.
- *
- * Denormalization for Authorization: The core security model relies on path-based
- * authorization, which is a highly efficient form of denormalization. The user's
- * ID is part of the document path, avoiding the need for costly `get()` calls to
- * check ownership on related documents. For subcollections like `progressLogs`, this
- * pattern is extended, ensuring authorization checks remain simple and performant.
- *
- * Structural Segregation: User-private data (`constructionActivities`, `progressLogs`)
- * is structurally segregated from potentially collaborative data (`reports`, `companies`) by
- * placing them in different top-level collections (`/users` vs. `/reports`, `/companies`).
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ------------------------------------------------------------------------
-    // Helper Functions
-    // ------------------------------------------------------------------------
-
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the currently authenticated user's UID matches the provided userId.
-     * This is the foundation of the user-ownership model.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * Checks if the document being operated on already exists.
-     * Crucial for protecting against writes to non-existent documents.
-     */
-    function documentExists() {
-      return resource != null;
-    }
-
-    /**
-     * A robust check for update and delete operations, ensuring the user is the
-     * owner AND the document actually exists.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && documentExists();
-    }
-
-    // ------------------------------------------------------------------------
-    // User Data Rules
-    // ------------------------------------------------------------------------
-
-    /**
-     * @description Rules for a user's root document. This allows a user to
-     *   create their own profile document, but not modify or delete it later.
-     * @path /users/{userId}
-     * @allow (create) Any authenticated user can create a user profile.
-     * @allow (get) Only the owner can get their own profile.
-     * @deny (update) User 'user_abc' trying to update `/users/user_abc`.
-     * @principle Enforces self-creation of a user's root document.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // Disallow listing all users.
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId);
-      allow delete: if false;
-    }
-
-    // ------------------------------------------------------------------------
-    // Top-Level Collection Rules
-    // ------------------------------------------------------------------------
-
-    /**
-     * @description Secures the global list of companies. Any authenticated
-     *   user can read and write to this collection.
-     * @path /companies/{companyId}
-     * @allow (read, write) Any authenticated user.
-     * @principle Allows global access for a shared resource.
-     */
     match /companies/{companyId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Secures a user's private list of construction activities.
-     *   Only the authenticated owner of this data can perform any action.
-     * @path /users/{userId}/constructionActivities/{activityId}
-     * @allow (create) User 'user_abc' creating a new activity at
-     *   `/users/user_abc/constructionActivities/activity_123`.
-     * @deny (get) User 'user_xyz' trying to read a document at
-     *   `/users/user_abc/constructionActivities/activity_123`.
-     * @principle Restricts access to a user's own data tree.
-     */
-    match /users/{userId}/constructionActivities/{activityId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update, delete: if isExistingOwner(userId);
+    match /users/{userId} {
+      allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Secures progress logs, which are subcollections of activities.
-     *   Access is inherited from the parent path's ownership. Critically, it
-     *   validates that the `activityId` inside a new log matches the path.
-     * @path /users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}
-     * @allow (create) User 'user_abc' creating a log with `activityId: 'activity_123'` at
-     *   `/users/user_abc/constructionActivities/activity_123/progressLogs/log_456`.
-     * @deny (create) User 'user_abc' creating a log with a mismatched
-     *   `activityId: 'activity_999'` at the same path.
-     * @principle Enforces document ownership and validates relational integrity.
-     */
-    match /users/{userId}/constructionActivities/{activityId}/progressLogs/{logId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.activityId == activityId;
-      allow update: if isExistingOwner(userId) && request.resource.data.activityId == resource.data.activityId;
-      allow delete: if isExistingOwner(userId);
+    match /users/{userId}/project_memberships/{projectId} {
+       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Secures generated reports.
-     *   CRITICAL: All access is currently denied because the 'Report' entity
-     *   schema is missing an 'ownerId', 'creatorId', or 'members' field.
-     *   Without such a field, it is impossible to securely determine who
-     *   is allowed to create, read, update, or delete a report.
-     * @path /reports/{reportId}
-     * @allow (none) No operations are currently permitted.
-     * @deny (create) Any user trying to create a report.
-     * @principle Defaults to a secure, deny-all posture when the data model
-     *   lacks the necessary fields for safe authorization.
-     */
-    match /reports/{reportId} {
-      // CRITICAL: Cannot implement secure rules. The 'Report' entity is missing an 'ownerId', 'creatorId', or 'members' field.
-      allow get: if false; // TODO: Add owner/member validation once the schema is updated.
-      allow list: if false; // TODO: Add owner/member validation once the schema is updated.
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update: if false; // TODO: Add owner/member validation once the schema is updated.
-      allow delete: if false; // TODO: Add owner/member validation once the schema is updated.
+    match /projects/{projectId} {
+      allow read, write: if isSignedIn();
     }
-    
-    /**
-     * @description Manages the global list of equipment types.
-     * @path /equipment_names/{equipmentTypeId}
-     * @allow (read) Any authenticated user can read the list of equipment types.
-     * @allow (write) Any authenticated user can also write (for now, can be restricted to admin later).
-     * @principle Allows global read access for a shared resource.
-     */
-    match /equipment_names/{equipmentTypeId} {
+
+    match /projects/{projectId}/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /equipment/{equipmentId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /equipment_names/{equipmentNameId} {
       allow read, write: if isSignedIn();
     }
     
-    /**
-     * @description Manages the global list of equipment.
-     * @path /equipment/{equipmentId}
-     * @allow (read) Any authenticated user can read the list of equipment.
-     * @allow (write) Any authenticated user can also write (for now, can be restricted to admin later).
-     * @principle Allows global access for a shared resource.
-     */
-     match /equipment/{equipmentId} {
+    match /invitations/{invitationId} {
         allow read, write: if isSignedIn();
-     }
+    }
+
+    match /documents/{documentId} {
+        allow read, write: if isSignedIn();
+    }
+    
+    match /report_index/{reportId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /admin_data/{docId} {
+       allow read, write: if isSignedIn();
+    }
   }
 }
-
     

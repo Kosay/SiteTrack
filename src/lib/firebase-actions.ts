@@ -11,8 +11,8 @@ import {
   setDoc,
   deleteDoc,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment } from './types';
-import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking, getSdks } from '@/firebase';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project } from './types';
+import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
 // Helper to get Firestore instance
@@ -167,6 +167,25 @@ export async function addEquipment(data: AddEquipmentData): Promise<void> {
     createdAt: serverTimestamp(),
   };
   addDocumentNonBlocking(equipmentCollectionRef, newEquipment);
+}
+
+// Add a new function for creating projects
+type AddProjectData = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'totalWork' | 'doneWork' | 'approvedWork'>;
+
+/**
+ * Adds a new project to the global collection.
+ */
+export async function addProject(data: AddProjectData): Promise<void> {
+  const projectsCollectionRef = collection(getDb(), 'projects');
+  const newProject = {
+    ...data,
+    totalWork: 0,
+    doneWork: 0,
+    approvedWork: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  addDocumentNonBlocking(projectsCollectionRef, newProject);
 }
 
     

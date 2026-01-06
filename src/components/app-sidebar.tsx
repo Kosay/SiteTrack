@@ -10,6 +10,7 @@ import {
   Building2,
   Users,
   Truck,
+  Briefcase
 } from 'lucide-react';
 
 import {
@@ -29,6 +30,7 @@ const navItems = [
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
+  { label: 'Projects', href: '/projects', icon: Briefcase },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
 ];
@@ -52,7 +54,7 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname === item.href}
+                isActive={pathname.startsWith(item.href)}
                 tooltip={item.label}
               >
                 <Link href={item.href}>
@@ -70,3 +72,5 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+
+    
