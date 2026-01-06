@@ -4,9 +4,9 @@
 export interface Company {
     id: string;
     name: string;
-    contact: string;
-    address: string;
-    logoUrl: string;
+    contact?: string; // Made optional
+    address?: string; // Made optional
+    logoUrl?: string; // Made optional
     directorId?: string;
     pmId?: string;
     createdAt: any; // Firestore Timestamp
@@ -282,5 +282,3 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
-
-    

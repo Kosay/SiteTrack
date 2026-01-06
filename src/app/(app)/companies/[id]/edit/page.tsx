@@ -3,12 +3,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft,
+  Building,
+  ChevronDown,
   LoaderCircle,
+  Trash2,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,12 +25,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -34,6 +38,10 @@ import { collection, doc } from 'firebase/firestore';
 import type { Company, User as SiteUser } from '@/lib/types';
 import { updateCompany } from '@/lib/firebase-actions';
 import Link from 'next/link';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+
 
 const formSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -47,6 +55,48 @@ const formSchema = z.object({
 });
 
 type CompanyFormValues = z.infer<typeof formSchema>;
+
+interface UserSelectionDialogProps {
+  users: SiteUser[];
+  onSelect: (userId: string) => void;
+  title: string;
+}
+
+function UserSelectionDialog({ users, onSelect, title }: UserSelectionDialogProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Change</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <Command>
+          <CommandInput placeholder="Search user..." />
+          <CommandEmpty>No users found.</CommandEmpty>
+          <CommandGroup>
+            {users.map((user) => (
+              <CommandItem
+                key={user.id}
+                value={user.name}
+                onSelect={() => {
+                  onSelect(user.id);
+                  setOpen(false);
+                }}
+              >
+                <User className={cn('mr-2 h-4 w-4')} />
+                {user.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function EditCompanyPage() {
   const params = useParams();
@@ -96,6 +146,11 @@ export default function EditCompanyPage() {
     () => users?.filter((u) => u.position === 'PM') || [],
     [users]
   );
+  
+  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+
+  const currentDirectorId = form.watch('directorId');
+  const currentPmId = form.watch('pmId');
 
   const onSubmit = async (values: CompanyFormValues) => {
     if (!auth) {
@@ -163,92 +218,79 @@ export default function EditCompanyPage() {
         </div>
       </header>
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Company Information</CardTitle>
-            <CardDescription>
-              Modify the fields below to update the company profile.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Company Name</Label>
-                <Input id="name" {...form.register('name')} />
-                {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contactPerson">Contact Person</Label>
-                <Input id="contactPerson" {...form.register('contactPerson')} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" {...form.register('email')} />
-                 {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mobile">Mobile</Label>
-                <Input id="mobile" type="tel" {...form.register('mobile')} />
-              </div>
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input id="address" {...form.register('address')} />
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" {...form.register('description')} />
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-               <div className="space-y-2">
-                <Label htmlFor="directorId">Director</Label>
-                 <Controller
-                    control={form.control}
-                    name="directorId"
-                    render={({ field }) => (
-                      <Select
-                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-                        value={field.value || 'none'}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a director" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {directors.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-              </div>
-               <div className="space-y-2">
-                <Label htmlFor="pmId">Project Manager (PM)</Label>
-                 <Controller
-                    control={form.control}
-                    name="pmId"
-                    render={({ field }) => (
-                      <Select
-                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-                        value={field.value || 'none'}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a PM" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {projectManagers.map((pm) => (
-                            <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Company Information</CardTitle>
+                <CardDescription>
+                  Modify the fields below to update the company profile.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Company Name</Label>
+                    <Input id="name" {...form.register('name')} />
+                    {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contactPerson">Contact Person</Label>
+                    <Input id="contactPerson" {...form.register('contactPerson')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" {...form.register('email')} />
+                    {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mobile">Mobile</Label>
+                    <Input id="mobile" type="tel" {...form.register('mobile')} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input id="address" {...form.register('address')} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea id="description" {...form.register('description')} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="lg:col-span-1 grid gap-6">
+             <Card>
+                <CardHeader>
+                  <CardTitle>Company Roles</CardTitle>
+                   <CardDescription>Assign key personnel to this company.</CardDescription>
+                </CardHeader>
+                 <CardContent className="space-y-6">
+                    <div className="space-y-3">
+                        <Label>Director</Label>
+                        <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
+                            <div className="flex items-center gap-3">
+                                <User className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium">{currentDirectorId ? userMap.get(currentDirectorId) : 'Not Assigned'}</span>
+                            </div>
+                            <UserSelectionDialog users={directors} title="Select Director" onSelect={(userId) => form.setValue('directorId', userId)} />
+                        </div>
+                    </div>
+                     <div className="space-y-3">
+                        <Label>Project Manager (PM)</Label>
+                         <div className="flex items-center justify-between gap-2 rounded-lg border p-3">
+                             <div className="flex items-center gap-3">
+                                <User className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium">{currentPmId ? userMap.get(currentPmId) : 'Not Assigned'}</span>
+                            </div>
+                            <UserSelectionDialog users={projectManagers} title="Select Project Manager" onSelect={(userId) => form.setValue('pmId', userId)} />
+                        </div>
+                    </div>
+                 </CardContent>
+            </Card>
+          </div>
+        </div>
+
         <div className="mt-6 flex justify-end gap-2">
             <Button variant="outline" asChild>
                 <Link href="/companies">Cancel</Link>
