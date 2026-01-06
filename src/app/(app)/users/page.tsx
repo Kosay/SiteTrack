@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, ChangeEvent, useRef } from 'react';
@@ -225,7 +226,6 @@ export default function UsersPage() {
           
           if (!Name || !Email || !Position || !companyId) {
             errorCount++;
-            console.error('Skipping invalid row:', row);
             continue;
           }
 
