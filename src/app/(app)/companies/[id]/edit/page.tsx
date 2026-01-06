@@ -227,7 +227,7 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
                       <Select onValueChange={field.onChange} value={field.value}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a PM" />
-                        </Trigger>
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">None</SelectItem>
                           {projectManagers.map((pm) => (
