@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LoaderCircle, PlusCircle, Wrench, Trash2, Database } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Truck, Trash2, Database } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -211,7 +211,7 @@ export default function EquipmentTypesPage() {
                     className="flex items-center justify-between p-3 rounded-md border bg-card hover:bg-muted/50"
                   >
                     <div className="flex items-center gap-3">
-                      <Wrench className="text-muted-foreground" />
+                      <Truck className="text-muted-foreground" />
                       <span className="font-medium">{type.name}</span>
                     </div>
                     <Button
@@ -226,7 +226,7 @@ export default function EquipmentTypesPage() {
               </ul>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg">
-                <Wrench className="w-12 h-12 text-muted-foreground" />
+                <Truck className="w-12 h-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">
                   No Equipment Types
                 </h3>
