@@ -49,6 +49,7 @@ const formSchema = z.object({
 type CompanyFormValues = z.infer<typeof formSchema>;
 
 export default function EditCompanyPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
@@ -56,8 +57,8 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const companyRef = useMemoFirebase(
-    () => doc(firestore, 'companies', params.id),
-    [firestore, params.id]
+    () => doc(firestore, 'companies', id),
+    [firestore, id]
   );
   const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
 
@@ -106,7 +107,7 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
     }
     setIsSubmitting(true);
     try {
-      await updateCompany(auth, params.id, values);
+      await updateCompany(auth, id, values);
       toast({
         title: 'Company Updated',
         description: `${values.name} has been updated successfully.`,
