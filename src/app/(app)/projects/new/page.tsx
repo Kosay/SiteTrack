@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,7 +15,7 @@ import { ArrowLeft, ArrowRight, LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company } from '@/lib/types';
+import type { Company, User } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -79,8 +80,58 @@ const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleCh
 };
 
 
+// Step 2 Component
+const Step2_Leadership = ({ formData, users, isLoadingUsers, handleSelectChange }) => {
+    const directors = useMemo(() => users?.filter(u => u.position === 'Director') || [], [users]);
+    const projectManagers = useMemo(() => users?.filter(u => u.position === 'PM') || [], [users]);
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 2: Select Leadership</CardTitle>
+                <CardDescription>
+                    Assign the key leadership roles for this project.
+                </CardDescription>
+            </CardHeader>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label htmlFor="directorId">Project Director</Label>
+                    {isLoadingUsers ? <LoaderCircle className="animate-spin" /> :
+                        <Select name="directorId" value={formData.directorId || ''} onValueChange={(value) => handleSelectChange('directorId', value)}>
+                            <SelectTrigger id="directorId">
+                                <SelectValue placeholder="Select a director" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {directors.map((d) => (
+                                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    }
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="pmId">Project Manager (PM)</Label>
+                    {isLoadingUsers ? <LoaderCircle className="animate-spin" /> :
+                        <Select name="pmId" value={formData.pmId || ''} onValueChange={(value) => handleSelectChange('pmId', value)}>
+                            <SelectTrigger id="pmId">
+                                <SelectValue placeholder="Select a project manager" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {projectManagers.map((pm) => (
+                                    <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    }
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // Placeholder components for other steps
-const Step2 = () => <div><CardTitle>Step 2: Select Director & PM</CardTitle></div>;
 const Step3 = () => <div><CardTitle>Step 3: Select CM & Engineers</CardTitle></div>;
 const Step4 = () => <div><CardTitle>Step 4: Select Other Users</CardTitle></div>;
 const Step5 = () => <div><CardTitle>Step 5: Define Units</CardTitle></div>;
@@ -97,10 +148,13 @@ export default function NewProjectWizard() {
 
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollection);
+  
+  const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersCollection);
 
   const steps = [
     { name: 'Basics', component: (props) => <Step1_ProjectBasics {...props} /> },
-    { name: 'Leadership', component: Step2 },
+    { name: 'Leadership', component: (props) => <Step2_Leadership {...props} /> },
     { name: 'Team', component: Step3 },
     { name: 'Support', component: Step4 },
     { name: 'Units', component: Step5 },
@@ -134,6 +188,8 @@ export default function NewProjectWizard() {
     setFormData,
     companies,
     isLoadingCompanies,
+    users,
+    isLoadingUsers,
     handleChange,
     handleSelectChange,
   };
