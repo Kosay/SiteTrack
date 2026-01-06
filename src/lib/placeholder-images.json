@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "safety-analysis-placeholder",
+      "description": "A placeholder image for the safety analysis feature before a user uploads their own.",
+      "imageUrl": "https://images.unsplash.com/photo-1591955506264-3f5a6834570a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxjb25zdHJ1Y3Rpb24lMjBzaXRlfGVufDB8fHx8MTc2NzYyOTUyNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "construction site"
+    },
+    {
+      "id": "report-image-1",
+      "description": "Image for the first mock report log.",
+      "imageUrl": "https://images.unsplash.com/photo-1607631697491-61972eecf928?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8ZWxlY3RyaWNhbCUyMHdpcmluZ3xlbnwwfHx8fDE3Njc1OTkwNjd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "electrical wiring"
+    },
+    {
+      "id": "report-image-2",
+      "description": "Image for the second mock report log.",
+      "imageUrl": "https://images.unsplash.com/photo-1766330977065-4458b54c6d1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxwbHVtYmluZyUyMHBpcGVzfGVufDB8fHx8MTc2NzY1NjEyNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "plumbing pipes"
+    },
+    {
+      "id": "report-image-3",
+      "description": "Image for the third mock report log.",
+      "imageUrl": "https://images.unsplash.com/photo-1641698680673-edab78703c0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxmb3VuZGF0aW9uJTIwY29uY3JldGV8ZW58MHx8fHwxNzY3Njc5ODE2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "foundation concrete"
+    }
+  ]
 }
