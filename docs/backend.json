@@ -33,7 +33,7 @@
         "email": { "type": "string", "format": "email" },
         "position": { "type": "string", "enum": ["Admin", "CEO", "Director", "PM", "CM", "Engineer", "General Foreman", "Safety Officer", "Safety Manager", "Logistic", "Document Controller", "Accountant", "progress_control"] },
         "companyId": { "type": "string" },
-        "salaryNumber": { "type": "string", "description": "Unique Salary Number or Series Number for the employee." },
+        "salaryNumber": { "type": "string", "description": "Unique Salary Number or Series Number for the employee within a company." },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -216,7 +216,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Invitation", "type": "object", "description": "Represents an invitation for a new user to sign up.",
       "properties": {
-        "id": { "type": "string" }, "code": { "type": "string" }, "email": { "type": "string", "format": "email" }, "name": { "type": "string" }, "position": { "type": "string" }, "companyId": { "type": "string" }, "status": { "type": "string", "enum": ["pending", "completed"] }, "createdAt": { "type": "string", "format": "date-time" }, "creatorId": { "type": "string" }, "creatorName": { "type": "string" }, "completedAt": { "type": "string", "format": "date-time" }, "usedBy": { "type": "string" }
+        "id": { "type": "string" }, "code": { "type": "string" }, "email": { "type": "string", "format": "email" }, "name": { "type": "string" }, "position": { "type": "string" }, "companyId": { "type": "string" }, "status": { "type": "string", "enum": ["pending", "completed"] }, "createdAt": { "type": "string", "format": "date-time" }, "creatorId": { "type": "string" }, "creatorName": { "type": "string" }, "completedAt": { "type": "string", "format": "date-time" }, "usedBy": { "type": "string" }, "salaryNumber": { "type": "string", "description": "Unique Salary Number or Series Number for the employee within a company." }
       },
       "required": ["code", "email", "name", "position", "companyId", "status", "createdAt", "creatorId", "creatorName"]
     },
@@ -267,4 +267,3 @@
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
   }
 }
-

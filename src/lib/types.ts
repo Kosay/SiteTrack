@@ -97,6 +97,7 @@ export interface Invitation {
     creatorName: string;
     completedAt?: any; // Firestore Timestamp
     usedBy?: string;
+    salaryNumber?: string;
 }
 
 export interface Document {

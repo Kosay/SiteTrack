@@ -64,9 +64,10 @@ function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSucc
     const email = formData.get('email') as string;
     const position = formData.get('position') as User['position'];
     const companyId = formData.get('companyId') as string;
+    const salaryNumber = formData.get('salaryNumber') as string;
 
     if (!name || !email || !position || !companyId) {
-      toast({ variant: 'destructive', title: 'Missing fields', description: 'Please fill out all fields.' });
+      toast({ variant: 'destructive', title: 'Missing fields', description: 'Please fill out all required fields.' });
       setIsSubmitting(false);
       return;
     }
@@ -77,6 +78,7 @@ function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSucc
         email,
         position,
         companyId,
+        salaryNumber,
         creatorId: auth.currentUser.uid,
         creatorName: auth.currentUser.displayName || 'Admin',
       });
@@ -133,6 +135,10 @@ function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSucc
           </Select>
         </div>
       </div>
+      <div className="space-y-2">
+          <Label htmlFor="salaryNumber">Salary Number (S.N.)</Label>
+          <Input id="salaryNumber" name="salaryNumber" placeholder="e.g., 12345" />
+      </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
@@ -179,7 +185,8 @@ export default function UsersPage() {
       'Name': user.name,
       'Email': user.email,
       'Position': user.position,
-      'Company': companyMap.get(user.companyId) || 'N/A'
+      'Company': companyMap.get(user.companyId) || 'N/A',
+      'S.N.': user.salaryNumber || '',
     }));
 
     const csv = Papa.unparse(dataToExport);
@@ -213,7 +220,7 @@ export default function UsersPage() {
         let errorCount = 0;
 
         for (const row of parsedData) {
-          const { Name, Email, Position, Company: CompanyName } = row;
+          const { Name, Email, Position, Company: CompanyName, 'S.N.': salaryNumber } = row;
           const companyId = companyIdMap.get(CompanyName);
           
           if (!Name || !Email || !Position || !companyId) {
@@ -223,7 +230,7 @@ export default function UsersPage() {
           }
 
           try {
-            await createInvitation({ name: Name, email: Email, position: Position, companyId, creatorId, creatorName });
+            await createInvitation({ name: Name, email: Email, position: Position, companyId, salaryNumber, creatorId, creatorName });
             successCount++;
           } catch (error) {
             errorCount++;
@@ -306,6 +313,7 @@ export default function UsersPage() {
                         <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Email</TableHead>
+                            <TableHead>S.N.</TableHead>
                             <TableHead>Position</TableHead>
                             <TableHead>Company</TableHead>
                              <TableHead className="text-right">Actions</TableHead>
@@ -316,6 +324,7 @@ export default function UsersPage() {
                             <TableRow key={user.id}>
                             <TableCell className="font-medium">{user.name}</TableCell>
                             <TableCell>{user.email}</TableCell>
+                             <TableCell>{user.salaryNumber || 'N/A'}</TableCell>
                             <TableCell>{user.position}</TableCell>
                             <TableCell>{companyMap.get(user.companyId) || 'N/A'}</TableCell>
                             <TableCell className="text-right">
@@ -329,7 +338,7 @@ export default function UsersPage() {
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
+                                <TableCell colSpan={6} className="h-24 text-center">
                                     No registered users yet.
                                 </TableCell>
                             </TableRow>

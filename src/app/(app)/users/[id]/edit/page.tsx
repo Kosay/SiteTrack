@@ -40,6 +40,7 @@ const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   position: z.string().min(1, 'Position is required'),
   companyId: z.string().min(1, 'Company is required'),
+  salaryNumber: z.string().optional(),
 });
 
 type UserFormValues = z.infer<typeof formSchema>;
@@ -85,6 +86,7 @@ export default function EditUserPage() {
         name: user.name,
         position: user.position,
         companyId: user.companyId,
+        salaryNumber: user.salaryNumber || '',
       });
     }
   }, [user, reset]);
@@ -168,14 +170,20 @@ export default function EditUserPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" {...register('name')} />
-                {errors.name && (
-                  <p className="text-sm text-destructive">
-                    {errors.name.message}
-                  </p>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input id="name" {...register('name')} />
+                  {errors.name && (
+                    <p className="text-sm text-destructive">
+                      {errors.name.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="salaryNumber">Salary Number (S.N.)</Label>
+                  <Input id="salaryNumber" {...register('salaryNumber')} />
+                </div>
               </div>
                <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
