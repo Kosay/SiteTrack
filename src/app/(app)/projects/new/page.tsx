@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, ChangeEvent } from 'react';
@@ -11,11 +12,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks, Boxes } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company, User, Unit, Zone, Activity } from '@/lib/types';
+import type { Company, User, Unit, Zone, Activity, SubActivity } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -32,6 +33,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { addUnit } from '@/lib/firebase-actions';
 import { Textarea } from '@/components/ui/textarea';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 // Step 1 Component
 const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
@@ -658,8 +660,153 @@ const Step7_DefineActivities = ({ formData, handleMultiSelectChange }) => {
 };
 
 
+const Step8_SubActivities = ({ formData, units, handleMultiSelectChange }) => {
+    const { toast } = useToast();
+    const [currentSubActivity, setCurrentSubActivity] = useState({ name: '', description: '', unit: '', totalWork: 0 });
+    const [zoneQuantities, setZoneQuantities] = useState({});
+
+    const activities = formData.activities || [];
+    const zones = formData.zones || [];
+    const projectUnits = useMemo(() => {
+        const selectedUnitIds = new Set(formData.unitIds || []);
+        return units.filter(u => selectedUnitIds.has(u.id));
+    }, [units, formData.unitIds]);
+
+    const handleSubActivityChange = (e) => {
+        const { name, value } = e.target;
+        setCurrentSubActivity(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleUnitChange = (value) => {
+        setCurrentSubActivity(prev => ({ ...prev, unit: value }));
+    };
+
+    const handleZoneQuantityChange = (zoneName, value) => {
+        setZoneQuantities(prev => ({ ...prev, [zoneName]: Number(value) || 0 }));
+    };
+
+    const handleAddSubActivity = (activityIndex) => {
+        if (!currentSubActivity.name || !currentSubActivity.unit || !currentSubActivity.totalWork) {
+            toast({ variant: 'destructive', title: 'Missing Fields', description: 'Sub-activity name, unit, and total work are required.' });
+            return;
+        }
+
+        const newSubActivity = {
+            ...currentSubActivity,
+            activityId: activityIndex, // Using index as temporary ID
+            zoneQuantities
+        };
+        
+        const newSubActivities = [...(formData.subActivities || []), newSubActivity];
+        handleMultiSelectChange('subActivities', newSubActivities);
+
+        // Reset forms
+        setCurrentSubActivity({ name: '', description: '', unit: '', totalWork: 0 });
+        setZoneQuantities({});
+    };
+
+    const getSubActivitiesForActivity = (activityIndex) => {
+        return (formData.subActivities || []).filter(sa => sa.activityId === activityIndex);
+    }
+    
+    if (activities.length === 0) {
+        return (
+            <div className="space-y-6">
+                <CardHeader className="p-0">
+                    <CardTitle>Step 8: Define Sub-activities & BoQ</CardTitle>
+                    <CardDescription>
+                        First, go back to Step 7 and add at least one activity.
+                    </CardDescription>
+                </CardHeader>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 8: Define Sub-activities & BoQ</CardTitle>
+                <CardDescription>
+                    For each activity, define its sub-activities and assign quantities for each zone.
+                </CardDescription>
+            </CardHeader>
+
+            <Accordion type="single" collapsible className="w-full">
+                {activities.map((activity, index) => (
+                    <AccordionItem value={`item-${index}`} key={index}>
+                        <AccordionTrigger>{activity.name} ({activity.code})</AccordionTrigger>
+                        <AccordionContent>
+                            <div className="space-y-6 p-4 border rounded-md">
+                                <h4 className="font-semibold text-md">Add New Sub-activity</h4>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                    <Input name="name" placeholder="Sub-activity Name" value={currentSubActivity.name} onChange={handleSubActivityChange} />
+                                    <Select name="unit" onValueChange={handleUnitChange} value={currentSubActivity.unit}>
+                                        <SelectTrigger><SelectValue placeholder="Select Unit" /></SelectTrigger>
+                                        <SelectContent>
+                                            {projectUnits.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input name="totalWork" type="number" placeholder="Total Work (Qty)" value={currentSubActivity.totalWork || ''} onChange={handleSubActivityChange} />
+                                </div>
+                                <Textarea name="description" placeholder="Sub-activity description (optional)" value={currentSubActivity.description} onChange={handleSubActivityChange} rows={2}/>
+
+                                <div className="space-y-2">
+                                    <Label>Zone Quantities</Label>
+                                    {zones.length > 0 ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-2 border rounded-md">
+                                            {zones.map((zone, zIndex) => (
+                                                <div key={zIndex} className="space-y-1">
+                                                    <Label htmlFor={`zone-${index}-${zIndex}`} className="text-xs text-muted-foreground">{zone.name}</Label>
+                                                    <Input 
+                                                        id={`zone-${index}-${zIndex}`} 
+                                                        type="number" 
+                                                        placeholder="Qty" 
+                                                        value={zoneQuantities[zone.name] || ''}
+                                                        onChange={(e) => handleZoneQuantityChange(zone.name, e.target.value)}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : <p className="text-xs text-muted-foreground">No zones defined. Go back to Step 6 to add zones.</p>}
+                                </div>
+                                <Button onClick={() => handleAddSubActivity(index)}><PlusCircle className="mr-2 h-4 w-4"/> Add Sub-activity</Button>
+                                
+                                <hr />
+
+                                <h4 className="font-semibold text-md">Defined Sub-activities</h4>
+                                <div className="space-y-4">
+                                    {getSubActivitiesForActivity(index).map((sa, saIndex) => (
+                                        <div key={saIndex} className="p-3 border rounded-lg bg-muted/20">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-2"><Boxes className="w-4 h-4 text-primary"/>{sa.name}</p>
+                                                    <p className="text-sm text-muted-foreground">{sa.description}</p>
+                                                </div>
+                                                <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{sa.totalWork} {sa.unit}</p>
+                                            </div>
+                                            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                                {Object.entries(sa.zoneQuantities).map(([zone, qty]) => (
+                                                    <div key={zone} className="flex justify-between items-center bg-muted/50 p-1.5 rounded">
+                                                        <span className="text-muted-foreground">{zone}:</span>
+                                                        <span className="font-medium">{String(qty)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {getSubActivitiesForActivity(index).length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No sub-activities added yet.</p>}
+                                </div>
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
+        </div>
+    );
+};
+
+
 // Placeholder components for other steps
-const Step8 = () => <div><CardTitle>Step 8: Define Sub-activities & Quantities</CardTitle></div>;
 const Step9 = () => <div><CardTitle>Step 9: Review & Save</CardTitle></div>;
 
 
@@ -674,6 +821,7 @@ export default function NewProjectWizard() {
     unitIds: [],
     zones: [],
     activities: [],
+    subActivities: [],
   });
   const firestore = useFirestore();
 
@@ -696,7 +844,7 @@ export default function NewProjectWizard() {
     { name: 'Units', component: (props) => <Step5_DefineUnits {...props} /> },
     { name: 'Zones', component: (props) => <Step6_DefineZones {...props} /> },
     { name: 'Activities', component: (props) => <Step7_DefineActivities {...props} /> },
-    { name: 'Sub-activities', component: Step8 },
+    { name: 'Sub-activities', component: (props) => <Step8_SubActivities {...props} /> },
     { name: 'Review', component: Step9 },
   ];
 
@@ -788,3 +936,5 @@ export default function NewProjectWizard() {
     </div>
   );
 }
+
+    
