@@ -1,5 +1,10 @@
 // Type definitions based on docs/backend.json
 
+export interface UserProfile {
+  name: string;
+  role: string;
+}
+
 export interface ConstructionActivity {
   id: string;
   name: string;

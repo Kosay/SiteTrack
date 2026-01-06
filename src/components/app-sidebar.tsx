@@ -17,7 +17,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
+import { UserButton } from './user-button';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
@@ -57,6 +59,9 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <UserButton />
+      </SidebarFooter>
     </Sidebar>
   );
 }
