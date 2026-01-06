@@ -29,23 +29,32 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { constructionActivities } from '@/lib/data';
 import { analyzeImageForSafety } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { DetectSafetyViolationsOutput } from '@/ai/flows/detect-safety-violations';
+import type { ConstructionActivity } from '@/lib/types';
+import { addProgressLog } from '@/lib/firebase-actions';
+import { useAuth } from '@/firebase';
 
 const placeholderImage = PlaceHolderImages.find(
   (img) => img.id === 'safety-analysis-placeholder'
 );
 
-export function ProgressForm() {
+interface ProgressFormProps {
+  activities: ConstructionActivity[];
+}
+
+export function ProgressForm({ activities }: ProgressFormProps) {
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageData, setImageData] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] =
     useState<DetectSafetyViolationsOutput | null>(null);
+  
+  const auth = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -53,8 +62,7 @@ export function ProgressForm() {
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // 2MB limit
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
         toast({
           variant: 'destructive',
           title: 'Image Too Large',
@@ -67,6 +75,7 @@ export function ProgressForm() {
         const dataUrl = reader.result as string;
         setImagePreview(dataUrl);
         setImageData(dataUrl);
+        handleAnalyze(dataUrl);
       };
       reader.readAsDataURL(file);
       setAnalysisResult(null); // Clear previous results
@@ -81,22 +90,12 @@ export function ProgressForm() {
     }
     setAnalysisResult(null);
   };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!imageData) {
-      toast({
-        variant: 'destructive',
-        title: 'No Image Selected',
-        description: 'Please upload an image to analyze.',
-      });
-      return;
-    }
-
-    setIsLoading(true);
+  
+  const handleAnalyze = async (data: string) => {
+    setIsAnalyzing(true);
     setAnalysisResult(null);
 
-    const result = await analyzeImageForSafety(imageData);
+    const result = await analyzeImageForSafety(data);
 
     if ('error' in result) {
       toast({
@@ -111,8 +110,51 @@ export function ProgressForm() {
         description: 'Safety check has finished successfully.',
       });
     }
+    setIsAnalyzing(false);
+  }
 
-    setIsLoading(false);
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const formData = new FormData(e.currentTarget);
+    const activityId = formData.get('activity') as string;
+    const description = formData.get('description') as string;
+
+    if (!activityId || !description) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Fields',
+        description: 'Please fill out all required fields.',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await addProgressLog(auth, {
+        activityId,
+        description,
+        imageUrls: imageData ? [imageData] : [],
+        // These are example values, adjust as needed
+        progressPercentage: Math.floor(Math.random() * 101),
+        status: ['Not Started', 'In Progress', 'Completed'][Math.floor(Math.random() * 3)],
+      });
+
+      toast({
+        title: 'Progress Logged',
+        description: 'Your update has been saved successfully.',
+      });
+      formRef.current?.reset();
+      handleRemoveImage();
+    } catch (error) {
+       toast({
+        variant: 'destructive',
+        title: 'Submission Failed',
+        description: 'Could not save your progress log. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -134,7 +176,7 @@ export function ProgressForm() {
                   <SelectValue placeholder="Select an activity" />
                 </SelectTrigger>
                 <SelectContent>
-                  {constructionActivities.map((activity) => (
+                  {activities.map((activity) => (
                     <SelectItem key={activity.id} value={activity.id}>
                       {activity.name}
                     </SelectItem>
@@ -177,6 +219,11 @@ export function ProgressForm() {
           <div className="space-y-4">
             <Label>Image Preview & Analysis</Label>
             <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
+              {isAnalyzing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                    <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              )}
               {imagePreview ? (
                 <Image
                   src={imagePreview}
@@ -236,11 +283,11 @@ export function ProgressForm() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isLoading} className="ml-auto">
-            {isLoading && (
+          <Button type="submit" disabled={isSubmitting || isAnalyzing} className="ml-auto">
+            {(isSubmitting || isAnalyzing) && (
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
             )}
-            {isLoading ? 'Analyzing...' : 'Log Progress & Analyze'}
+            {isSubmitting ? 'Logging...' : 'Log Progress'}
           </Button>
         </CardFooter>
       </Card>

@@ -1,5 +1,8 @@
 import type { ImagePlaceholder } from './placeholder-images';
 import { PlaceHolderImages } from './placeholder-images';
+import type { ConstructionActivity, ProgressLog } from './types';
+
+// Mock data is kept for reference but will be replaced by Firestore data in the app.
 
 export const overallProgressData = [
   { date: 'Jan', progress: 10 },
@@ -18,16 +21,16 @@ export const activityProgressData = [
   { name: 'Finishing', progress: 30 },
 ];
 
-export const constructionActivities = [
-  { id: 'foundation', name: 'Foundation' },
-  { id: 'framing', name: 'Framing' },
-  { id: 'electrical', name: 'Electrical' },
-  { id: 'plumbing', name: 'Plumbing' },
-  { id: 'hvac', name: 'HVAC' },
-  { id: 'drywall', name: 'Drywall' },
-  { id: 'painting', name: 'Painting' },
-  { id: 'flooring', name: 'Flooring' },
-  { id: 'finishing', name: 'Finishing Touches' },
+export const constructionActivities: ConstructionActivity[] = [
+  { id: 'foundation', name: 'Foundation', description: '', startDate: '', endDate: '', status: 'Completed' },
+  { id: 'framing', name: 'Framing', description: '', startDate: '', endDate: '', status: 'In Progress' },
+  { id: 'electrical', name: 'Electrical', description: '', startDate: '', endDate: '', status: 'In Progress' },
+  { id: 'plumbing', name: 'Plumbing', description: '', startDate: '', endDate: '', status: 'In Progress' },
+  { id: 'hvac', name: 'HVAC', description: '', startDate: '', endDate: '', status: 'Not Started' },
+  { id: 'drywall', name: 'Drywall', description: '', startDate: '', endDate: '', status: 'Not Started' },
+  { id: 'painting', name: 'Painting', description: '', startDate: '', endDate: '', status: 'Not Started' },
+  { id: 'flooring', name: 'Flooring', description: '', startDate: '', endDate: '', status: 'Not Started' },
+  { id: 'finishing', name: 'Finishing Touches', description: '', startDate: '', endDate: '', status: 'Not Started' },
 ];
 
 const reportImages = PlaceHolderImages.filter((img) =>
@@ -37,37 +40,49 @@ const reportImages = PlaceHolderImages.filter((img) =>
   return acc;
 }, {} as Record<string, ImagePlaceholder>);
 
-export const reportLogs = [
+export const reportLogs: (ProgressLog & { activity: string, image?: ImagePlaceholder, status: string })[] = [
   {
-    id: 1,
-    date: '2024-06-15',
+    id: '1',
+    logDate: '2024-06-15',
     activity: 'Electrical',
     description: 'Completed rough-in wiring for the main floor. All boxes are set and ready for inspection.',
     status: 'Completed',
     image: reportImages['report-image-1'],
+    activityId: 'electrical',
+    progressPercentage: 100,
+    imageUrls: reportImages['report-image-1'] ? [reportImages['report-image-1'].imageUrl] : [],
   },
   {
-    id: 2,
-    date: '2024-06-14',
+    id: '2',
+    logDate: '2024-06-14',
     activity: 'Plumbing',
     description: 'Supply lines installed in the upstairs bathrooms. Waiting on fixtures to arrive for final installation.',
     status: 'In Progress',
     image: reportImages['report-image-2'],
+    activityId: 'plumbing',
+    progressPercentage: 60,
+    imageUrls: reportImages['report-image-2'] ? [reportImages['report-image-2'].imageUrl] : [],
   },
   {
-    id: 3,
-    date: '2024-06-12',
+    id: '3',
+    logDate: '2024-06-12',
     activity: 'Foundation',
     description: 'Foundation walls have been poured and cured. Waterproofing is complete.',
     status: 'Completed',
     image: reportImages['report-image-3'],
+    activityId: 'foundation',
+    progressPercentage: 100,
+    imageUrls: reportImages['report-image-3'] ? [reportImages['report-image-3'].imageUrl] : [],
   },
   {
-    id: 4,
-    date: '2024-06-10',
+    id: '4',
+    logDate: '2024-06-10',
     activity: 'Framing',
     description: 'Exterior wall framing is 50% complete. Second-floor joists are being laid out.',
     status: 'In Progress',
-    image: null,
+    image: undefined,
+    activityId: 'framing',
+    progressPercentage: 50,
+    imageUrls: [],
   },
 ];

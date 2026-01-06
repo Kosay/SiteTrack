@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import {
   Card,
@@ -15,7 +17,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { reportLogs } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,10 +28,23 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { useFirestoreData } from '@/lib/hooks/use-firestore-data';
+import { LoaderCircle } from 'lucide-react';
 
 export default function ReportsPage() {
-  const totalLogs = reportLogs.length;
-  const completedLogs = reportLogs.filter(
+  const { progressLogs, isLoading } = useFirestoreData();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Loading Reports...</span>
+      </div>
+    );
+  }
+
+  const totalLogs = progressLogs.length;
+  const completedLogs = progressLogs.filter(
     (log) => log.status === 'Completed'
   ).length;
 
@@ -71,26 +85,28 @@ export default function ReportsPage() {
                 </div>
                 <Separator />
                 <div className="space-y-4">
-                  {reportLogs.map((log) => (
+                  {progressLogs.map((log) => (
                     <div key={log.id} className="space-y-2">
                       <div className="flex justify-between items-baseline">
-                        <h3 className="font-semibold">{log.activity}</h3>
-                        <p className="text-sm text-muted-foreground">{log.date}</p>
+                        <h3 className="font-semibold">{log.activityName}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {log.logDate}
+                        </p>
                       </div>
                       <p className="text-sm">{log.description}</p>
-                      {log.image && (
-                         <div className="w-full overflow-hidden rounded-md border">
-                            <Image
-                                src={log.image.imageUrl}
-                                alt={`Image for ${log.activity}`}
-                                width={800}
-                                height={600}
-                                className="object-cover"
-                                data-ai-hint={log.image.imageHint}
-                            />
+                      {log.imageUrls && log.imageUrls[0] && (
+                        <div className="w-full overflow-hidden rounded-md border">
+                          <Image
+                            src={log.imageUrls[0]}
+                            alt={`Image for ${log.activityName}`}
+                            width={800}
+                            height={600}
+                            className="object-cover"
+                            data-ai-hint="construction progress"
+                          />
                         </div>
                       )}
-                       <Separator className="mt-4"/>
+                      <Separator className="mt-4" />
                     </div>
                   ))}
                 </div>
@@ -121,17 +137,17 @@ export default function ReportsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportLogs.map((log) => (
+              {progressLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="hidden sm:table-cell">
-                    {log.image ? (
+                    {log.imageUrls && log.imageUrls[0] ? (
                       <Image
                         alt="Log image"
                         className="aspect-square rounded-md object-cover"
                         height="64"
-                        src={log.image.imageUrl}
+                        src={log.imageUrls[0]}
                         width="64"
-                        data-ai-hint={log.image.imageHint}
+                        data-ai-hint="construction progress"
                       />
                     ) : (
                       <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center text-muted-foreground">
@@ -139,7 +155,7 @@ export default function ReportsPage() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">{log.activity}</TableCell>
+                  <TableCell className="font-medium">{log.activityName}</TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -151,11 +167,11 @@ export default function ReportsPage() {
                           : ''
                       }
                     >
-                      {log.status}
+                      {log.status || 'Not Started'}
                     </Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {log.date}
+                    {log.logDate}
                   </TableCell>
                   <TableCell className="text-right">
                     <Dialog>
@@ -166,21 +182,25 @@ export default function ReportsPage() {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>{log.activity} - {log.date}</DialogTitle>
-                           <DialogDescription>Status: {log.status}</DialogDescription>
+                          <DialogTitle>
+                            {log.activityName} - {log.logDate}
+                          </DialogTitle>
+                          <DialogDescription>
+                            Status: {log.status || 'Not Started'}
+                          </DialogDescription>
                         </DialogHeader>
-                         <p className="py-4">{log.description}</p>
-                         {log.image && (
+                        <p className="py-4">{log.description}</p>
+                        {log.imageUrls && log.imageUrls[0] && (
                           <div className="relative aspect-video w-full overflow-hidden rounded-md border">
                             <Image
-                                src={log.image.imageUrl}
-                                alt={`Image for ${log.activity}`}
-                                fill
-                                className="object-cover"
-                                data-ai-hint={log.image.imageHint}
+                              src={log.imageUrls[0]}
+                              alt={`Image for ${log.activityName}`}
+                              fill
+                              className="object-cover"
+                              data-ai-hint="construction progress"
                             />
-                        </div>
-                         )}
+                          </div>
+                        )}
                       </DialogContent>
                     </Dialog>
                   </TableCell>

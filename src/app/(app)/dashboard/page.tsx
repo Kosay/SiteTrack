@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowUpRight, ClipboardPlus, FileText } from 'lucide-react';
+import { ArrowUpRight, ClipboardPlus, FileText, LoaderCircle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -18,10 +20,25 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ProgressChart } from '@/components/progress-chart';
-import { overallProgressData, activityProgressData, reportLogs } from '@/lib/data';
+import { useFirestoreData } from '@/lib/hooks/use-firestore-data';
 
 export default function DashboardPage() {
-  const recentLogs = reportLogs.slice(0, 3);
+  const {
+    activityProgressData,
+    overallProgressData,
+    recentLogs,
+    isLoading,
+  } = useFirestoreData();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Loading Dashboard...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <header>
@@ -94,26 +111,26 @@ export default function DashboardPage() {
                 {recentLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
-                      <div className="font-medium">{log.activity}</div>
+                      <div className="font-medium">{log.activityName}</div>
                       <div className="hidden text-sm text-muted-foreground md:inline">
                         {log.description.substring(0, 50)}...
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant={
-                          log.status === 'Completed' ? 'default' : 'secondary'
-                        }
-                        className={
-                          log.status === 'Completed'
-                            ? 'bg-primary/20 text-primary-foreground hover:bg-primary/30'
-                            : ''
-                        }
-                      >
-                        {log.status}
-                      </Badge>
+                        <Badge
+                          variant={
+                            log.status === 'Completed' ? 'default' : 'secondary'
+                          }
+                          className={
+                            log.status === 'Completed'
+                              ? 'bg-primary/20 text-primary-foreground hover:bg-primary/30'
+                              : ''
+                          }
+                        >
+                          {log.status}
+                        </Badge>
                     </TableCell>
-                    <TableCell className="text-right">{log.date}</TableCell>
+                    <TableCell className="text-right">{log.logDate}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
