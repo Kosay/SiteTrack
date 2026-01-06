@@ -8,15 +8,18 @@
       "properties": {
         "id": { "type": "string", "description": "Unique identifier for the Company entity." },
         "name": { "type": "string", "description": "Name of the company." },
-        "contact": { "type": "string", "description": "Name of the contact person." },
+        "contactPerson": { "type": "string" },
+        "email": { "type": "string", "format": "email"},
+        "mobile": { "type": "string" },
         "address": { "type": "string", "description": "Address of the company." },
         "logoUrl": { "type": "string", "format": "uri", "description": "URL of the company logo." },
+        "description": { "type": "string" },
         "directorId": { "type": "string", "description": "The ID of the user who is the director of the company." },
         "pmId": { "type": "string", "description": "The ID of the user who is the Project Manager for the company." },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "contact", "address", "logoUrl", "createdAt"]
+      "required": ["name", "createdAt"]
     },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -255,3 +258,4 @@
   }
 }
     
+  

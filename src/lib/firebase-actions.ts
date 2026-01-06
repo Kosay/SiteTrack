@@ -13,7 +13,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -85,7 +85,7 @@ export async function addProgressLog(
   addDocumentNonBlocking(logsCollectionRef, newLog);
 }
 
-type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorId' | 'pmId'>;
+type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorId' | 'pmId' | 'createdAt' | 'updatedAt'>;
 
 /**
  * Adds a new company to the global collection.
@@ -105,6 +105,7 @@ export async function addCompany(
     ...data,
     archived: false,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
 
   addDocumentNonBlocking(companiesCollectionRef, newCompany);
@@ -126,7 +127,10 @@ export async function updateCompany(
   }
 
   const companyDocRef = doc(getDb(), 'companies', companyId);
-  updateDocumentNonBlocking(companyDocRef, data);
+  updateDocumentNonBlocking(companyDocRef, {
+      ...data,
+      updatedAt: serverTimestamp()
+  });
 }
 
 type AddEquipmentTypeData = Omit<EquipmentType, 'id'>;
@@ -190,3 +194,23 @@ export async function addProject(data: AddProjectData): Promise<void> {
   addDocumentNonBlocking(projectsCollectionRef, newProject);
 }
 
+type CreateInvitationData = Omit<Invitation, 'id' | 'code' | 'status' | 'createdAt'>;
+
+/**
+ * Creates an invitation for a new user.
+ */
+export async function createInvitation(data: CreateInvitationData): Promise<void> {
+  const invitationsCollectionRef = collection(getDb(), 'invitations');
+  const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+  const newInvitation: Omit<Invitation, 'id'> = {
+    ...data,
+    code,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  };
+
+  await addDocumentNonBlocking(invitationsCollectionRef, newInvitation);
+}
+
+  
