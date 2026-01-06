@@ -11,11 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, LayoutGroup } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company, User, Unit } from '@/lib/types';
+import type { Company, User, Unit, Zone } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { addUnit } from '@/lib/firebase-actions';
+import { Textarea } from '@/components/ui/textarea';
 
 // Step 1 Component
 const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
@@ -463,8 +464,98 @@ const Step5_DefineUnits = ({ formData, units, isLoadingUnits, handleMultiSelectC
 };
 
 
+const Step6_DefineZones = ({ formData, handleMultiSelectChange }) => {
+    const [zoneName, setZoneName] = useState('');
+    const [zoneMap, setZoneMap] = useState('');
+
+    const zones = formData.zones || [];
+
+    const handleAddZone = () => {
+        if (!zoneName.trim()) {
+            // Consider showing a toast message here
+            return;
+        }
+        const newZone: Omit<Zone, 'id'> = { 
+            name: zoneName.trim(), 
+            mapSvg: zoneMap.trim() || undefined 
+        };
+        handleMultiSelectChange('zones', [...zones, newZone]);
+        setZoneName('');
+        setZoneMap('');
+    };
+
+    const handleRemoveZone = (index: number) => {
+        const newZones = [...zones];
+        newZones.splice(index, 1);
+        handleMultiSelectChange('zones', newZones);
+    };
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 6: Define Zones</CardTitle>
+                <CardDescription>
+                    Add project zones and optionally include an SVG map for each.
+                </CardDescription>
+            </CardHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <div className="space-y-4 rounded-lg border p-4">
+                    <h3 className="text-lg font-medium">Add New Zone</h3>
+                     <div className="space-y-2">
+                        <Label htmlFor="zoneName">Zone Name</Label>
+                        <Input 
+                            id="zoneName" 
+                            value={zoneName} 
+                            onChange={(e) => setZoneName(e.target.value)} 
+                            placeholder="e.g., 'Sector A', 'Floor 1'"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="zoneMap">Zone Map SVG (Optional)</Label>
+                        <Textarea 
+                            id="zoneMap"
+                            value={zoneMap}
+                            onChange={(e) => setZoneMap(e.target.value)}
+                            placeholder="<svg>...</svg>"
+                            rows={4}
+                            className="font-mono text-xs"
+                        />
+                    </div>
+                    <Button onClick={handleAddZone} className="w-full">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Zone
+                    </Button>
+                </div>
+
+                <div className="space-y-3">
+                     <h3 className="text-lg font-medium">Added Zones</h3>
+                     <div className="space-y-2 max-h-80 overflow-y-auto pr-2 rounded-lg border p-2">
+                        {zones.length > 0 ? (
+                            zones.map((zone, index) => (
+                                <div key={index} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2">
+                                    <div className="flex items-center gap-3">
+                                        <LayoutGroup className="h-5 w-5 text-muted-foreground" />
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{zone.name}</span>
+                                            {zone.mapSvg && <span className="text-xs text-muted-foreground">SVG map included</span>}
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveZone(index)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No zones added yet.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Placeholder components for other steps
-const Step6 = () => <div><CardTitle>Step 6: Define Zones</CardTitle></div>;
 const Step7 = () => <div><CardTitle>Step 7: Define Activities</CardTitle></div>;
 const Step8 = () => <div><CardTitle>Step 8: Define Sub-activities & Quantities</CardTitle></div>;
 const Step9 = () => <div><CardTitle>Step 9: Review & Save</CardTitle></div>;
@@ -479,6 +570,7 @@ export default function NewProjectWizard() {
     docControllerIds: [],
     logisticIds: [],
     unitIds: [],
+    zones: [],
   });
   const firestore = useFirestore();
 
@@ -499,7 +591,7 @@ export default function NewProjectWizard() {
     { name: 'Team', component: (props) => <Step3_Team {...props} /> },
     { name: 'Support', component: (props) => <Step4_Support {...props} /> },
     { name: 'Units', component: (props) => <Step5_DefineUnits {...props} /> },
-    { name: 'Zones', component: Step6 },
+    { name: 'Zones', component: (props) => <Step6_DefineZones {...props} /> },
     { name: 'Activities', component: Step7 },
     { name: 'Sub-activities', component: Step8 },
     { name: 'Review', component: Step9 },
@@ -522,7 +614,7 @@ export default function NewProjectWizard() {
       setFormData(prev => ({...prev, [name]: value}));
   }
 
-  const handleMultiSelectChange = (name: string, value: string[]) => {
+  const handleMultiSelectChange = (name: string, value: any[]) => {
     setFormData(prev => ({...prev, [name]: value}));
   }
 

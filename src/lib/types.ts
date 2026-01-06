@@ -151,6 +151,7 @@ export interface Unit {
 export interface Zone {
     id: string;
     name: string;
+    mapSvg?: string;
 }
 
 export interface Activity {
