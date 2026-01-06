@@ -11,11 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company, User, Unit, Zone } from '@/lib/types';
+import type { Company, User, Unit, Zone, Activity } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -555,8 +555,110 @@ const Step6_DefineZones = ({ formData, handleMultiSelectChange }) => {
     );
 };
 
+const Step7_DefineActivities = ({ formData, handleMultiSelectChange }) => {
+    const [activityName, setActivityName] = useState('');
+    const [activityCode, setActivityCode] = useState('');
+    const [activityDesc, setActivityDesc] = useState('');
+
+    const activities = formData.activities || [];
+
+    const handleAddActivity = () => {
+        if (!activityName.trim() || !activityCode.trim()) {
+            // Consider showing a toast message here for required fields
+            return;
+        }
+        const newActivity: Omit<Activity, 'id'> = { 
+            name: activityName.trim(), 
+            code: activityCode.trim(),
+            description: activityDesc.trim(),
+        };
+        handleMultiSelectChange('activities', [...activities, newActivity]);
+        setActivityName('');
+        setActivityCode('');
+        setActivityDesc('');
+    };
+
+    const handleRemoveActivity = (index: number) => {
+        const newActivities = [...activities];
+        newActivities.splice(index, 1);
+        handleMultiSelectChange('activities', newActivities);
+    };
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 7: Define Activities</CardTitle>
+                <CardDescription>
+                    Add the high-level construction activities for this project.
+                </CardDescription>
+            </CardHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <div className="space-y-4 rounded-lg border p-4">
+                    <h3 className="text-lg font-medium">Add New Activity</h3>
+                     <div className="space-y-2">
+                        <Label htmlFor="activityName">Activity Name</Label>
+                        <Input 
+                            id="activityName" 
+                            value={activityName} 
+                            onChange={(e) => setActivityName(e.target.value)} 
+                            placeholder="e.g., 'Foundation Works'"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="activityCode">Activity Code</Label>
+                        <Input 
+                            id="activityCode" 
+                            value={activityCode} 
+                            onChange={(e) => setActivityCode(e.target.value)} 
+                            placeholder="e.g., 'FW-01'"
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="activityDesc">Description (Optional)</Label>
+                        <Textarea 
+                            id="activityDesc"
+                            value={activityDesc}
+                            onChange={(e) => setActivityDesc(e.target.value)}
+                            placeholder="Describe the activity..."
+                            rows={3}
+                        />
+                    </div>
+                    <Button onClick={handleAddActivity} className="w-full">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Activity
+                    </Button>
+                </div>
+
+                <div className="space-y-3">
+                     <h3 className="text-lg font-medium">Added Activities</h3>
+                     <div className="space-y-2 max-h-80 overflow-y-auto pr-2 rounded-lg border p-2">
+                        {activities.length > 0 ? (
+                            activities.map((activity, index) => (
+                                <div key={index} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3">
+                                    <div className="flex items-start gap-3">
+                                        <ListChecks className="h-5 w-5 text-muted-foreground mt-1" />
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{activity.name} ({activity.code})</span>
+                                            {activity.description && <p className="text-xs text-muted-foreground">{activity.description}</p>}
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => handleRemoveActivity(index)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No activities added yet.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // Placeholder components for other steps
-const Step7 = () => <div><CardTitle>Step 7: Define Activities</CardTitle></div>;
 const Step8 = () => <div><CardTitle>Step 8: Define Sub-activities & Quantities</CardTitle></div>;
 const Step9 = () => <div><CardTitle>Step 9: Review & Save</CardTitle></div>;
 
@@ -571,6 +673,7 @@ export default function NewProjectWizard() {
     logisticIds: [],
     unitIds: [],
     zones: [],
+    activities: [],
   });
   const firestore = useFirestore();
 
@@ -592,7 +695,7 @@ export default function NewProjectWizard() {
     { name: 'Support', component: (props) => <Step4_Support {...props} /> },
     { name: 'Units', component: (props) => <Step5_DefineUnits {...props} /> },
     { name: 'Zones', component: (props) => <Step6_DefineZones {...props} /> },
-    { name: 'Activities', component: Step7 },
+    { name: 'Activities', component: (props) => <Step7_DefineActivities {...props} /> },
     { name: 'Sub-activities', component: Step8 },
     { name: 'Review', component: Step9 },
   ];
