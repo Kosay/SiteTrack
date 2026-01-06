@@ -1,12 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  LoaderCircle,
-  PlusCircle,
-  Wrench,
-  Trash2,
-} from 'lucide-react';
+import { LoaderCircle, PlusCircle, Wrench, Trash2, Database } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -15,11 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  useFirestore,
-  useCollection,
-  useMemoFirebase,
-} from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { EquipmentType } from '@/lib/types';
 import {
@@ -35,6 +26,19 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { addEquipmentType, deleteEquipmentType } from '@/lib/firebase-actions';
 import { Label } from '@/components/ui/label';
+
+const SEED_DATA: Omit<EquipmentType, 'id'>[] = [
+    { name: 'JCB' },
+    { name: 'Bobcat' },
+    { name: 'Excavator' },
+    { name: 'Crane' },
+    { name: 'Bulldozer' },
+    { name: 'Grader' },
+    { name: 'Tipper Truck' },
+    { name: 'Concrete Mixer' },
+    { name: 'Tower Crane' },
+    { name: 'Paver' },
+]
 
 function EquipmentTypeForm({ onSuccess }: { onSuccess: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,6 +109,7 @@ export default function EquipmentTypesPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const equipmentTypesCollectionRef = useMemoFirebase(() => {
     return collection(firestore, 'equipment_names');
@@ -129,6 +134,26 @@ export default function EquipmentTypesPage() {
     }
   };
 
+  const handleSeedData = async () => {
+    setIsSeeding(true);
+    try {
+      const promises = SEED_DATA.map(equipment => addEquipmentType(equipment));
+      await Promise.all(promises);
+      toast({
+        title: "Database Seeded",
+        description: `${SEED_DATA.length} equipment types have been added.`,
+      });
+    } catch (error: any) {
+       toast({
+        variant: 'destructive',
+        title: 'Seeding Failed',
+        description: error.message,
+      });
+    } finally {
+      setIsSeeding(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -138,21 +163,31 @@ export default function EquipmentTypesPage() {
             Manage the categories for your equipment.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <PlusCircle className="mr-2" />
-            New Type
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={handleSeedData}
+            disabled={isSeeding || (equipmentTypes && equipmentTypes.length > 0)}
+          >
+            {isSeeding ? <LoaderCircle className="mr-2 animate-spin" /> : <Database className="mr-2" />}
+            Seed Equipment
           </Button>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create a New Equipment Type</DialogTitle>
-              <DialogDescription>
-                Add a new category for your equipment inventory.
-              </DialogDescription>
-            </DialogHeader>
-            <EquipmentTypeForm onSuccess={() => setIsFormOpen(false)} />
-          </DialogContent>
-        </Dialog>
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <PlusCircle className="mr-2" />
+              New Type
+            </Button>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create a New Equipment Type</DialogTitle>
+                <DialogDescription>
+                  Add a new category for your equipment inventory.
+                </DialogDescription>
+              </DialogHeader>
+              <EquipmentTypeForm onSuccess={() => setIsFormOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </header>
 
       {isLoading ? (
@@ -196,7 +231,7 @@ export default function EquipmentTypesPage() {
                   No Equipment Types
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Get started by creating a new equipment type.
+                  Get started by seeding or creating a new equipment type.
                 </p>
               </div>
             )}
