@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HardHat, LayoutGrid, ClipboardPlus, FileText } from 'lucide-react';
+import {
+  HardHat,
+  LayoutGrid,
+  ClipboardPlus,
+  FileText,
+  Building2,
+} from 'lucide-react';
 
 import {
   Sidebar,
@@ -17,6 +23,7 @@ const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { label: 'Progress Log', href: '/progress', icon: ClipboardPlus },
   { label: 'Reports', href: '/reports', icon: FileText },
+  { label: 'Companies', href: '/companies', icon: Building2 },
 ];
 
 export function AppSidebar() {
