@@ -14,7 +14,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -265,4 +265,94 @@ export async function deleteUnit(unitId: string): Promise<void> {
     if (!unitId) throw new Error('A valid Unit ID must be provided.');
     const unitDocRef = doc(getDb(), 'units', unitId);
     deleteDocumentNonBlocking(unitDocRef);
+}
+
+
+type AddActivityData = Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork'>;
+
+/**
+ * Adds a new activity to a project's subcollection.
+ * @param projectId The ID of the parent project.
+ * @param data The activity data to add.
+ */
+export async function addActivity(projectId: string, data: AddActivityData): Promise<void> {
+    if (!projectId) throw new Error("A valid Project ID must be provided.");
+    const activitiesCollectionRef = collection(getDb(), `projects/${projectId}/activities`);
+    const newActivity = {
+        ...data,
+        totalWork: 0,
+        doneWork: 0,
+        approvedWork: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+    await addDoc(activitiesCollectionRef, newActivity);
+}
+
+/**
+ * Updates an existing activity within a project.
+ * @param projectId The ID of the parent project.
+ * @param activityId The ID of the activity to update.
+ * @param data The partial data to update.
+ */
+export async function updateActivity(projectId: string, activityId: string, data: Partial<Activity>): Promise<void> {
+    if (!projectId || !activityId) throw new Error("Project ID and Activity ID must be provided.");
+    const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
+    await updateDoc(activityDocRef, { ...data, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Deletes an activity from a project.
+ * @param projectId The ID of the parent project.
+ * @param activityId The ID of the activity to delete.
+ */
+export async function deleteActivity(projectId: string, activityId: string): Promise<void> {
+    if (!projectId || !activityId) throw new Error("Project ID and Activity ID must be provided.");
+    const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
+    await deleteDoc(activityDocRef);
+}
+
+
+type AddSubActivityData = Omit<SubActivity, 'id'>;
+
+/**
+ * Adds a new sub-activity (BoQ item) to an activity.
+ * @param projectId The ID of the parent project.
+ * @param activityId The ID of the parent activity.
+ * @param data The sub-activity data.
+ */
+export async function addSubActivity(projectId: string, activityId: string, data: AddSubActivityData): Promise<void> {
+    if (!projectId || !activityId) throw new Error("Project and Activity ID must be provided.");
+    const subActivitiesRef = collection(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`);
+    const newSubActivity = {
+        ...data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+    await addDoc(subActivitiesRef, newSubActivity);
+}
+
+/**
+ * Updates an existing sub-activity.
+ * @param projectId The ID of the parent project.
+ * @param activityId The ID of the parent activity.
+ * @param subActivityId The ID of the sub-activity to update.
+ * @param data The partial data for the sub-activity.
+ */
+export async function updateSubActivity(projectId: string, activityId: string, subActivityId: string, data: Partial<SubActivity>): Promise<void> {
+    if (!projectId || !activityId || !subActivityId) throw new Error("Project, Activity, and Sub-Activity IDs are required.");
+    const subActivityDocRef = doc(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`, subActivityId);
+    await updateDoc(subActivityDocRef, { ...data, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Deletes a sub-activity.
+ * @param projectId The ID of the parent project.
+ * @param activityId The ID of the parent activity.
+ * @param subActivityId The ID of the sub-activity to delete.
+ */
+export async function deleteSubActivity(projectId: string, activityId: string, subActivityId: string): Promise<void> {
+    if (!projectId || !activityId || !subActivityId) throw new Error("Project, Activity, and Sub-Activity IDs are required.");
+    const subActivityDocRef = doc(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`, subActivityId);
+    await deleteDoc(subActivityDocRef);
 }
