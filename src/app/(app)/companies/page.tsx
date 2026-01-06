@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Archive,
   Building2,
@@ -12,6 +13,7 @@ import {
   Phone,
   User,
   MapPin,
+  Edit,
 } from 'lucide-react';
 import {
   Card,
@@ -85,6 +87,8 @@ function CompanyForm({ onSuccess }: { onSuccess: () => void }) {
         mobile,
         contactPerson,
         address,
+        logoUrl: '',
+        contact: '',
       });
       toast({
         title: 'Company Created',
@@ -291,6 +295,12 @@ export default function CompaniesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                         <DropdownMenuItem asChild>
+                          <Link href={`/companies/${company.id}/edit`}>
+                            <Edit className="mr-2" />
+                            <span>Edit</span>
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleArchive(company)}>
                           <Archive className="mr-2" />
                           <span>
@@ -350,5 +360,4 @@ export default function CompaniesPage() {
     </div>
   );
 }
-
     

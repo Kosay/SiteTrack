@@ -7,8 +7,15 @@ export interface Company {
     contact: string;
     address: string;
     logoUrl: string;
+    directorId?: string;
+    pmId?: string;
     createdAt: any; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
+    archived?: boolean;
+    description?: string;
+    email?: string;
+    mobile?: string;
+    contactPerson?: string;
 }
 
 export interface User {
@@ -61,6 +68,11 @@ export interface Equipment {
     rentalMonthlyRent?: number;
     rentalAnnualRent?: number;
     rentalStartDate?: any; // Firestore Timestamp
+    status?: "Working" | "Broken" | "In Garage";
+    assignedTo?: string;
+    ownershipCertificateDate?: string;
+    thirdPartyCertificateDate?: string;
+    typeId?: string;
 }
 
 export interface EquipmentName {
@@ -233,6 +245,42 @@ export interface ProjectDashboardSummary {
     progressPercent: number;
     lastReportAt: any; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
+}
+
+// Legacy types, kept for compatibility if needed. Will be removed later.
+export interface UserProfile {
+  name: string;
+  email: string;
+  role: string;
+  project: string | null;
+}
+
+export interface ConstructionActivity {
+  id: string;
+  name: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+}
+
+export interface ProgressLog {
+  id: string;
+  activityId: string;
+  logDate: any; // Can be a Date or a Firestore Timestamp
+  description: string;
+  imageUrls?: string[];
+  progressPercentage: number;
+  status: string;
+}
+
+export interface ProgressLogWithActivity extends ProgressLog {
+  activityName: string;
+}
+
+export interface EquipmentType {
+  id: string;
+  name: string;
 }
 
     

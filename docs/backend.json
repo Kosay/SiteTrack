@@ -11,6 +11,8 @@
         "contact": { "type": "string", "description": "Name of the contact person." },
         "address": { "type": "string", "description": "Address of the company." },
         "logoUrl": { "type": "string", "format": "uri", "description": "URL of the company logo." },
+        "directorId": { "type": "string", "description": "The ID of the user who is the director of the company." },
+        "pmId": { "type": "string", "description": "The ID of the user who is the Project Manager for the company." },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
