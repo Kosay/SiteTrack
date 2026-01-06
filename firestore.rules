@@ -176,5 +176,16 @@ service cloud.firestore {
     match /equipment_names/{equipmentTypeId} {
       allow read, write: if isSignedIn();
     }
+    
+    /**
+     * @description Manages the global list of equipment.
+     * @path /equipment/{equipmentId}
+     * @allow (read) Any authenticated user can read the list of equipment.
+     * @allow (write) Any authenticated user can also write (for now, can be restricted to admin later).
+     * @principle Allows global access for a shared resource.
+     */
+     match /equipment/{equipmentId} {
+        allow read, write: if isSignedIn();
+     }
   }
 }

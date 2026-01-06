@@ -29,6 +29,7 @@ const navItems = [
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
+  { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
 ];
 

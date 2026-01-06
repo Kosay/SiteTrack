@@ -53,3 +53,14 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
+
+export interface Equipment {
+  id: string;
+  plateNumber: string;
+  typeId: string;
+  status: 'Working' | 'Broken' | 'In Garage';
+  assignedTo: string;
+  projectId: string;
+  thirdPartyCertificateDate: string; // ISO 8601 date string
+  ownershipCertificateDate: string; // ISO 8601 date string
+}
