@@ -744,10 +744,10 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
                             onChange={handleImport}
                         />
                         <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
-                            <Upload className="mr-2" /> Import CSV
+                            <Upload className="mr-2 h-4 w-4" /> Import CSV
                         </Button>
                         <Button variant="outline" size="sm" onClick={handleExport}>
-                            <Download className="mr-2" /> Export CSV
+                            <Download className="mr-2 h-4 w-4" /> Export CSV
                         </Button>
                     </div>
                 </div>
@@ -904,7 +904,7 @@ export default function NewProjectWizard() {
 
         const dataToExport = subActivities.map(sa => {
             const activity = activityMap.get(sa.activityId);
-            const row = {
+            const row: Record<string, any> = {
                 'ActivityCode': activity?.code || '',
                 'ActivityName': activity?.name || '',
                 'SubActivityName': sa.name,
@@ -937,12 +937,12 @@ export default function NewProjectWizard() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-            const parsedData = results.data;
+            const parsedData = results.data as Record<string, string>[];
             const { activities, zones } = formData;
             const activityCodeMap = new Map(activities.map((act, index) => [act.code, index]));
             const zoneNames = new Set(zones.map(z => z.name));
 
-            const newSubActivities = [];
+            const newSubActivities: any[] = [];
             let errorOccurred = false;
 
             for (const row of parsedData) {
