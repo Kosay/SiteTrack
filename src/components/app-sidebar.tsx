@@ -36,7 +36,6 @@ const navItems = [
   { label: 'Users', href: '/users', icon: Users },
   { label: 'Invitations', href: '/invitations', icon: Mail },
   { label: 'Projects', href: '/projects', icon: Briefcase },
-  { label: 'Activities', href: '/activities', icon: ListChecks },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
   { label: 'Seed Data', href: '/seed', icon: Database },
