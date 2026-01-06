@@ -202,7 +202,7 @@ export default function EquipmentTypesPage() {
             )}
           </CardContent>
         </Card>
-      </header>
+      )}
     </div>
   );
 }
