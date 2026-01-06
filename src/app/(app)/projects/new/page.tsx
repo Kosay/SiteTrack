@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, LayoutGroup } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -534,7 +534,7 @@ const Step6_DefineZones = ({ formData, handleMultiSelectChange }) => {
                             zones.map((zone, index) => (
                                 <div key={index} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2">
                                     <div className="flex items-center gap-3">
-                                        <LayoutGroup className="h-5 w-5 text-muted-foreground" />
+                                        <Layout className="h-5 w-5 text-muted-foreground" />
                                         <div className="flex flex-col">
                                             <span className="text-sm font-medium">{zone.name}</span>
                                             {zone.mapSvg && <span className="text-xs text-muted-foreground">SVG map included</span>}
@@ -685,5 +685,3 @@ export default function NewProjectWizard() {
     </div>
   );
 }
-
-    
