@@ -17,7 +17,7 @@ import {
 import { useAuth, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc } from 'firebase/firestore';
-import type { UserProfile } from '@/lib/types';
+import type { User } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function UserButton() {
@@ -30,7 +30,7 @@ export function UserButton() {
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
 
-  const { data: userProfile, isLoading } = useDoc<UserProfile>(userProfileRef);
+  const { data: userProfile, isLoading } = useDoc<User>(userProfileRef);
 
   const handleLogout = () => {
     auth.signOut();
@@ -76,7 +76,7 @@ export function UserButton() {
               {userProfile?.name || user.email || 'User'}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/70">
-              {userProfile?.role || 'No role assigned'}
+              {userProfile?.position || 'No position assigned'}
             </p>
           </div>
           <ChevronUp className="h-4 w-4 text-sidebar-foreground/70" />
