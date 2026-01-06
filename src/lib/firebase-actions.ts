@@ -11,7 +11,7 @@ import {
   setDoc,
   deleteDoc,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking, getSdks } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -154,4 +154,19 @@ export async function deleteEquipmentType(equipmentTypeId: string): Promise<void
   }
   const equipmentTypeDocRef = doc(getDb(), 'equipment_names', equipmentTypeId);
   deleteDocumentNonBlocking(equipmentTypeDocRef);
+}
+
+type AddEquipmentData = Omit<Equipment, 'id'>;
+
+/**
+ * Adds a new piece of equipment to the global inventory.
+ * @param data - The equipment data to add.
+ */
+export async function addEquipment(data: AddEquipmentData): Promise<void> {
+  const equipmentCollectionRef = collection(getDb(), 'equipment');
+  const newEquipment = {
+    ...data,
+    createdAt: serverTimestamp(),
+  };
+  addDocumentNonBlocking(equipmentCollectionRef, newEquipment);
 }
