@@ -183,7 +183,6 @@ export default function ProjectsPage() {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const projectsCollection = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
@@ -258,27 +257,12 @@ export default function ProjectsPage() {
               Show Archived
             </Label>
           </div>
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <Button onClick={() => setIsFormOpen(true)}>
+          <Button asChild>
+            <Link href="/projects/new">
               <PlusCircle className="mr-2" />
               New Project
-            </Button>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>
-                  Fill in the details to set up a new project.
-                </DialogDescription>
-              </DialogHeader>
-              {isLoading ? <LoaderCircle className="mx-auto my-8 h-8 w-8 animate-spin" /> : 
-                <ProjectForm 
-                  companies={companies || []}
-                  users={users || []}
-                  onSuccess={() => setIsFormOpen(false)} 
-                />
-              }
-            </DialogContent>
-          </Dialog>
+            </Link>
+          </Button>
         </div>
       </header>
 
