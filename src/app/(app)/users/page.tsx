@@ -166,18 +166,14 @@ export default function UsersPage() {
 
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
-  const invitationsCollection = useMemoFirebase(() => collection(firestore, 'invitations'), [firestore]);
 
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersCollection);
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollection);
-  const { data: invitations, isLoading: isLoadingInvitations } = useCollection<Invitation>(invitationsCollection);
   
   const companyMap = useMemo(() => new Map(companies?.map(c => [c.id, c.name])), [companies]);
   const companyIdMap = useMemo(() => new Map(companies?.map(c => [c.name, c.id])), [companies]);
 
-  const pendingInvitations = useMemo(() => invitations?.filter(inv => inv.status === 'pending') || [], [invitations]);
-
-  const isLoading = isLoadingUsers || isLoadingCompanies || isLoadingInvitations;
+  const isLoading = isLoadingUsers || isLoadingCompanies;
   
   const groupedAndFilteredUsers = useMemo(() => {
     if (!users || !companies) return new Map<string, User[]>();
@@ -396,41 +392,6 @@ export default function UsersPage() {
                         )
                       })}
                     </Accordion>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Pending Invitations</CardTitle>
-                    <CardDescription>
-                        {pendingInvitations.length} users have been invited but have not yet signed up.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Status</TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {pendingInvitations.length > 0 ? pendingInvitations.map((inv) => (
-                            <TableRow key={inv.id}>
-                            <TableCell className="font-medium">{inv.name}</TableCell>
-                            <TableCell>{inv.email}</TableCell>
-                            <TableCell><Badge variant="secondary">{inv.status}</Badge></TableCell>
-                            </TableRow>
-                        )) : (
-                             <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center">
-                                    No pending invitations.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                        </TableBody>
-                    </Table>
                 </CardContent>
             </Card>
         </div>

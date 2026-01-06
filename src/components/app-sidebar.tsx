@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,6 +14,7 @@ import {
   Briefcase,
   Database,
   ListChecks,
+  Mail,
 } from 'lucide-react';
 
 import {
@@ -32,6 +34,7 @@ const navItems = [
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
+  { label: 'Invitations', href: '/invitations', icon: Mail },
   { label: 'Projects', href: '/projects', icon: Briefcase },
   { label: 'Activities', href: '/activities', icon: ListChecks },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
