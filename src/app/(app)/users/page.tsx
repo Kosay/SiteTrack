@@ -230,7 +230,7 @@ export default function UsersPage() {
           }
 
           try {
-            await createInvitation({ name: Name, email: Email, position: Position, companyId, salaryNumber, creatorId, creatorName });
+            await createInvitation({ name: Name, email: Email, position: Position, companyId, salaryNumber: salaryNumber || '', creatorId, creatorName });
             successCount++;
           } catch (error) {
             errorCount++;
