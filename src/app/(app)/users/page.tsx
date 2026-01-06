@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, ChangeEvent, useRef } from 'react';
 import Link from 'next/link';
 import {
   Table,
@@ -27,7 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { LoaderCircle, PlusCircle, UserPlus, Users, Edit } from 'lucide-react';
+import { LoaderCircle, UserPlus, Users, Edit, Upload, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createInvitation } from '@/lib/firebase-actions';
 import { useAuth, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import Papa from 'papaparse';
 
 
 function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSuccess: () => void }) {
@@ -149,6 +150,9 @@ function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSucc
 export default function UsersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
@@ -159,10 +163,90 @@ export default function UsersPage() {
   const { data: invitations, isLoading: isLoadingInvitations } = useCollection<Invitation>(invitationsCollection);
   
   const companyMap = useMemo(() => new Map(companies?.map(c => [c.id, c.name])), [companies]);
+  const companyIdMap = useMemo(() => new Map(companies?.map(c => [c.name, c.id])), [companies]);
 
   const pendingInvitations = useMemo(() => invitations?.filter(inv => inv.status === 'pending') || [], [invitations]);
 
   const isLoading = isLoadingUsers || isLoadingCompanies || isLoadingInvitations;
+
+  const handleExport = () => {
+    if (!users || users.length === 0) {
+      toast({ variant: 'destructive', title: 'No users to export' });
+      return;
+    }
+
+    const dataToExport = users.map(user => ({
+      'Name': user.name,
+      'Email': user.email,
+      'Position': user.position,
+      'Company': companyMap.get(user.companyId) || 'N/A'
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'users_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Export successful", description: `${users.length} users exported.` });
+  };
+
+  const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!auth?.currentUser) {
+        toast({ variant: 'destructive', title: 'Authentication Required', description: 'You must be logged in to import users.' });
+        return;
+    }
+    const creatorId = auth.currentUser.uid;
+    const creatorName = auth.currentUser.displayName || 'Admin';
+
+    Papa.parse<any>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const parsedData = results.data;
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const row of parsedData) {
+          const { Name, Email, Position, Company: CompanyName } = row;
+          const companyId = companyIdMap.get(CompanyName);
+          
+          if (!Name || !Email || !Position || !companyId) {
+            errorCount++;
+            console.error('Skipping invalid row:', row);
+            continue;
+          }
+
+          try {
+            await createInvitation({ name: Name, email: Email, position: Position, companyId, creatorId, creatorName });
+            successCount++;
+          } catch (error) {
+            errorCount++;
+            console.error(`Failed to invite ${Email}:`, error);
+          }
+        }
+        
+        toast({
+          title: "Import Complete",
+          description: `${successCount} invitations sent. ${errorCount > 0 ? `${errorCount} rows failed.` : ''}`
+        });
+
+      },
+      error: (error) => {
+        toast({ variant: 'destructive', title: 'CSV Parsing Error', description: error.message });
+      }
+    });
+
+    if (event.target) {
+        event.target.value = '';
+    }
+  };
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -173,23 +257,34 @@ export default function UsersPage() {
             Invite and manage users in your organization.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <UserPlus className="mr-2" />
-            Invite User
-          </Button>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Invite a New User</DialogTitle>
-              <DialogDescription>
-                They will receive an email with instructions to sign up and join the company.
-              </DialogDescription>
-            </DialogHeader>
-            {isLoadingCompanies ? <LoaderCircle className="animate-spin" /> : 
-              <InviteUserForm companies={companies || []} onSuccess={() => setIsFormOpen(false)} />
-            }
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            ref={importInputRef}
+            className="hidden"
+            accept=".csv"
+            onChange={handleImport}
+          />
+          <Button variant="outline" onClick={() => importInputRef.current?.click()}><Upload className="mr-2"/> Import</Button>
+          <Button variant="outline" onClick={handleExport}><Download className="mr-2"/> Export</Button>
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <UserPlus className="mr-2" />
+              Invite User
+            </Button>
+            <DialogContent className="sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Invite a New User</DialogTitle>
+                <DialogDescription>
+                  They will receive an email with instructions to sign up and join the company.
+                </DialogDescription>
+              </DialogHeader>
+              {isLoadingCompanies ? <LoaderCircle className="animate-spin" /> : 
+                <InviteUserForm companies={companies || []} onSuccess={() => setIsFormOpen(false)} />
+              }
+            </DialogContent>
+          </Dialog>
+        </div>
       </header>
 
       {isLoading ? (
