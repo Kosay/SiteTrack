@@ -48,3 +48,8 @@ export interface Report {
   activityIds: string[];
   content: string;
 }
+
+export interface EquipmentType {
+  id: string;
+  name: string;
+}

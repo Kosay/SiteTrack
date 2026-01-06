@@ -9,9 +9,10 @@ import {
   type Auth,
   type Firestore,
   setDoc,
+  deleteDoc,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile } from './types';
-import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, getSdks } from '@/firebase';
+import type { Company, ProgressLog, UserProfile, EquipmentType } from './types';
+import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking, getSdks } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
 // Helper to get Firestore instance
@@ -126,4 +127,31 @@ export async function updateCompany(
 
   const companyDocRef = doc(getDb(), `users/${userId}/companies`, companyId);
   updateDocumentNonBlocking(companyDocRef, data);
+}
+
+type AddEquipmentTypeData = Omit<EquipmentType, 'id'>;
+
+/**
+ * Adds a new equipment type to the global list.
+ * @param data - The equipment type data to add.
+ */
+export async function addEquipmentType(data: AddEquipmentTypeData): Promise<void> {
+  const equipmentTypesCollectionRef = collection(getDb(), 'equipment_names');
+  const newEquipmentType = {
+    ...data,
+    createdAt: serverTimestamp(),
+  };
+  addDocumentNonBlocking(equipmentTypesCollectionRef, newEquipmentType);
+}
+
+/**
+ * Deletes an equipment type from the global list.
+ * @param equipmentTypeId - The ID of the equipment type to delete.
+ */
+export async function deleteEquipmentType(equipmentTypeId: string): Promise<void> {
+  if (!equipmentTypeId) {
+    throw new Error('A valid Equipment Type ID must be provided.');
+  }
+  const equipmentTypeDocRef = doc(getDb(), 'equipment_names', equipmentTypeId);
+  deleteDocumentNonBlocking(equipmentTypeDocRef);
 }

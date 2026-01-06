@@ -165,5 +165,16 @@ service cloud.firestore {
       allow update: if false; // TODO: Add owner/member validation once the schema is updated.
       allow delete: if false; // TODO: Add owner/member validation once the schema is updated.
     }
+    
+    /**
+     * @description Manages the global list of equipment types.
+     * @path /equipment_names/{equipmentTypeId}
+     * @allow (read) Any authenticated user can read the list of equipment types.
+     * @allow (write) Any authenticated user can also write (for now, can be restricted to admin later).
+     * @principle Allows global read access for a shared resource.
+     */
+    match /equipment_names/{equipmentTypeId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }

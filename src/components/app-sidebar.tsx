@@ -9,6 +9,7 @@ import {
   FileText,
   Building2,
   Users,
+  Wrench,
 } from 'lucide-react';
 
 import {
@@ -28,6 +29,7 @@ const navItems = [
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
+  { label: 'Equipment Types', href: '/equipment-types', icon: Wrench },
 ];
 
 export function AppSidebar() {

@@ -195,6 +195,20 @@
         "activityIds",
         "content"
       ]
+    },
+    "EquipmentType": {
+      "title": "Equipment Type",
+      "description": "Represents a type of construction equipment.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the equipment type (e.g., 'JCB', 'Bobcat')."
+        }
+      },
+      "required": [
+        "name"
+      ]
     }
   },
   "auth": {
@@ -300,8 +314,24 @@
             }
           ]
         }
+      },
+      {
+        "path": "/equipment_names/{equipmentTypeId}",
+        "definition": {
+          "entityName": "EquipmentType",
+          "schema": {
+            "$ref": "#/backend/entities/EquipmentType"
+          },
+          "description": "Stores the list of available equipment types, accessible globally.",
+          "params": [
+            {
+              "name": "equipmentTypeId",
+              "description": "The unique identifier for the equipment type."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the Site Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}`: Stores public user profiles. Access is controlled so that users can only modify their own profiles, but other authenticated users might be able to read public information.\n*   `/users/{userId}/companies/{companyId}`: Path-based ownership for a user's companies.\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
+    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the Site Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}`: Stores public user profiles. Access is controlled so that users can only modify their own profiles, but other authenticated users might be able to read public information.\n*   `/users/{userId}/companies/{companyId}`: Path-based ownership for a user's companies.\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n*   `/equipment_names/{equipmentTypeId}`: This is a global collection that all authenticated users can read from, but only admins should be able to write to. It provides a centralized list of equipment types for use throughout the application.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
   }
 }
