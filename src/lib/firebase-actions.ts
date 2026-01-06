@@ -10,8 +10,10 @@ import {
   type Firestore,
   setDoc,
   deleteDoc,
+  WriteBatch,
+  writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -83,7 +85,7 @@ export async function addProgressLog(
   addDocumentNonBlocking(logsCollectionRef, newLog);
 }
 
-type AddCompanyData = Omit<Company, 'id' | 'archived'>;
+type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorId' | 'pmId'>;
 
 /**
  * Adds a new company to the global collection.
@@ -188,4 +190,3 @@ export async function addProject(data: AddProjectData): Promise<void> {
   addDocumentNonBlocking(projectsCollectionRef, newProject);
 }
 
-    

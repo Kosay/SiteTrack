@@ -10,7 +10,8 @@ import {
   Building2,
   Users,
   Truck,
-  Briefcase
+  Briefcase,
+  Database,
 } from 'lucide-react';
 
 import {
@@ -33,6 +34,7 @@ const navItems = [
   { label: 'Projects', href: '/projects', icon: Briefcase },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
+  { label: 'Seed Data', href: '/seed', icon: Database },
 ];
 
 export function AppSidebar() {
@@ -72,5 +74,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-
-    
