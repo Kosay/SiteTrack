@@ -1,13 +1,13 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowLeft,
-  Building2,
   LoaderCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,8 +48,9 @@ const formSchema = z.object({
 
 type CompanyFormValues = z.infer<typeof formSchema>;
 
-export default function EditCompanyPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function EditCompanyPage() {
+  const params = useParams();
+  const id = params.id as string;
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
