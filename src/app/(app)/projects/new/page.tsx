@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -25,6 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 // Step 1 Component
 const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
@@ -130,9 +133,133 @@ const Step2_Leadership = ({ formData, users, isLoadingUsers, handleSelectChange 
     );
 };
 
+// Reusable User Selection Dialog
+function UserSelectionDialog({ users, onSelect, title, triggerButton }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {triggerButton}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <Command>
+          <CommandInput placeholder="Search user..." />
+          <CommandEmpty>No users found.</CommandEmpty>
+          <CommandGroup>
+            {users.map((user) => (
+              <CommandItem
+                key={user.id}
+                value={user.name}
+                onSelect={() => {
+                  onSelect(user.id);
+                  setOpen(false);
+                }}
+              >
+                <UserIcon className={cn('mr-2 h-4 w-4')} />
+                {user.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// Step 3 Component
+const Step3_Team = ({ formData, users, isLoadingUsers, handleMultiSelectChange, userMap }) => {
+    const constructionManagers = useMemo(() => users?.filter(u => u.position === 'CM') || [], [users]);
+    const engineers = useMemo(() => users?.filter(u => u.position === 'Engineer') || [], [users]);
+
+    const addRoleMember = (role, userId) => {
+        const currentIds = formData[role] || [];
+        if (!currentIds.includes(userId)) {
+            handleMultiSelectChange(role, [...currentIds, userId]);
+        }
+    };
+
+    const removeRoleMember = (role, userId) => {
+        const currentIds = formData[role] || [];
+        handleMultiSelectChange(role, currentIds.filter(id => id !== userId));
+    };
+
+    const watchedCmIds = formData.cmIds || [];
+    const watchedEngineerIds = formData.engineerIds || [];
+
+    if (isLoadingUsers) {
+      return <LoaderCircle className="animate-spin" />
+    }
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 3: Select CM & Engineers</CardTitle>
+                <CardDescription>
+                    Assign the on-site construction managers and engineers.
+                </CardDescription>
+            </CardHeader>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                    <Label className="flex items-center justify-between">
+                        <span>Construction Managers (CMs)</span>
+                        <UserSelectionDialog 
+                            users={constructionManagers.filter(c => !watchedCmIds.includes(c.id))}
+                            title="Add Construction Manager" 
+                            onSelect={(userId) => addRoleMember('cmIds', userId)}
+                            triggerButton={<Button variant="ghost" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>}
+                        />
+                    </Label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                      {watchedCmIds.length > 0 ? watchedCmIds.map(userId => (
+                         <div key={userId} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                            <div className="flex items-center gap-3">
+                                <UserIcon className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium">{userMap.get(userId) || 'Unknown User'}</span>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRoleMember('cmIds', userId)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                      )) : <p className="text-sm text-muted-foreground text-center py-2">No CMs assigned.</p>}
+                    </div>
+                </div>
+
+                 <div className="space-y-3">
+                    <Label className="flex items-center justify-between">
+                        <span>Engineers</span>
+                        <UserSelectionDialog 
+                            users={engineers.filter(e => !watchedEngineerIds.includes(e.id))}
+                            title="Add Engineer" 
+                            onSelect={(userId) => addRoleMember('engineerIds', userId)}
+                            triggerButton={<Button variant="ghost" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add</Button>}
+                        />
+                    </Label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                      {watchedEngineerIds.length > 0 ? watchedEngineerIds.map(userId => (
+                         <div key={userId} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                            <div className="flex items-center gap-3">
+                                <UserIcon className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium">{userMap.get(userId) || 'Unknown User'}</span>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRoleMember('engineerIds', userId)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                      )) : <p className="text-sm text-muted-foreground text-center py-2">No engineers assigned.</p>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // Placeholder components for other steps
-const Step3 = () => <div><CardTitle>Step 3: Select CM & Engineers</CardTitle></div>;
 const Step4 = () => <div><CardTitle>Step 4: Select Other Users</CardTitle></div>;
 const Step5 = () => <div><CardTitle>Step 5: Define Units</CardTitle></div>;
 const Step6 = () => <div><CardTitle>Step 6: Define Zones</CardTitle></div>;
@@ -143,7 +270,10 @@ const Step9 = () => <div><CardTitle>Step 9: Review & Save</CardTitle></div>;
 
 export default function NewProjectWizard() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState({
+    cmIds: [],
+    engineerIds: [],
+  });
   const firestore = useFirestore();
 
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
@@ -152,10 +282,12 @@ export default function NewProjectWizard() {
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersCollection);
 
+  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+
   const steps = [
     { name: 'Basics', component: (props) => <Step1_ProjectBasics {...props} /> },
     { name: 'Leadership', component: (props) => <Step2_Leadership {...props} /> },
-    { name: 'Team', component: Step3 },
+    { name: 'Team', component: (props) => <Step3_Team {...props} /> },
     { name: 'Support', component: Step4 },
     { name: 'Units', component: Step5 },
     { name: 'Zones', component: Step6 },
@@ -181,17 +313,22 @@ export default function NewProjectWizard() {
       setFormData(prev => ({...prev, [name]: value}));
   }
 
+  const handleMultiSelectChange = (name: string, value: string[]) => {
+    setFormData(prev => ({...prev, [name]: value}));
+  }
+
   const CurrentStepComponent = steps[currentStep].component;
 
   const componentProps = {
     formData,
-    setFormData,
     companies,
     isLoadingCompanies,
     users,
     isLoadingUsers,
+    userMap,
     handleChange,
     handleSelectChange,
+    handleMultiSelectChange,
   };
 
   return (
