@@ -4,14 +4,14 @@ import {
   addDoc,
   collection,
   doc,
-  getFirestore,
   serverTimestamp,
   updateDoc,
   type Auth,
   type Firestore,
 } from 'firebase/firestore';
 import type { Company, ProgressLog } from './types';
-import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { addDocumentNonBlocking, updateDocumentNonBlocking, getSdks } from '@/firebase';
+import { getFirestore } from 'firebase/firestore';
 
 // Helper to get Firestore instance
 function getDb(): Firestore {
@@ -96,3 +96,5 @@ export async function updateCompany(
   const companyDocRef = doc(getDb(), `users/${userId}/companies`, companyId);
   updateDocumentNonBlocking(companyDocRef, data);
 }
+
+    

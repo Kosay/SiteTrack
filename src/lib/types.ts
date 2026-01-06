@@ -9,6 +9,10 @@ export interface Company {
   id: string;
   name: string;
   description: string;
+  email: string;
+  mobile: string;
+  contactPerson: string;
+  address: string;
   archived: boolean;
 }
 
@@ -42,3 +46,5 @@ export interface Report {
   activityIds: string[];
   content: string;
 }
+
+    

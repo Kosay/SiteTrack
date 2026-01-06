@@ -8,6 +8,10 @@ import {
   MoreVertical,
   PlusCircle,
   X,
+  Mail,
+  Phone,
+  User,
+  MapPin,
 } from 'lucide-react';
 import {
   Card,
@@ -48,11 +52,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addCompany, updateCompany } from '@/lib/firebase-actions';
 import { useAuth } from '@/firebase';
 
-function CompanyForm({
-  onSuccess,
-}: {
-  onSuccess: () => void;
-}) {
+function CompanyForm({ onSuccess }: { onSuccess: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const auth = useAuth();
@@ -63,6 +63,10 @@ function CompanyForm({
     const formData = new FormData(event.currentTarget);
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
+    const email = formData.get('email') as string;
+    const mobile = formData.get('mobile') as string;
+    const contactPerson = formData.get('contactPerson') as string;
+    const address = formData.get('address') as string;
 
     if (!name) {
       toast({
@@ -74,7 +78,14 @@ function CompanyForm({
     }
 
     try {
-      await addCompany(auth, { name, description });
+      await addCompany(auth, {
+        name,
+        description,
+        email,
+        mobile,
+        contactPerson,
+        address,
+      });
       toast({
         title: 'Company Created',
         description: `${name} has been added to your list.`,
@@ -93,14 +104,46 @@ function CompanyForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Company Name</Label>
+          <Input
+            id="name"
+            name="name"
+            placeholder="e.g., 'Innovate Construction'"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="contactPerson">Contact Person</Label>
+          <Input
+            id="contactPerson"
+            name="contactPerson"
+            placeholder="e.g., 'Jane Doe'"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="e.g., 'contact@innovate.com'"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="mobile">Mobile</Label>
+          <Input
+            id="mobile"
+            name="mobile"
+            type="tel"
+            placeholder="e.g., '+1-555-123-4567'"
+          />
+        </div>
+      </div>
       <div className="space-y-2">
-        <Label htmlFor="name">Company Name</Label>
-        <Input
-          id="name"
-          name="name"
-          placeholder="e.g., 'Innovate Construction'"
-          required
-        />
+        <Label htmlFor="address">Address</Label>
+        <Input id="address" name="address" placeholder="e.g., '123 Main St, Anytown, USA'" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="description">Company Description (Optional)</Label>
@@ -198,7 +241,7 @@ export default function CompaniesPage() {
               <PlusCircle className="mr-2" />
               New Company
             </Button>
-            <DialogContent>
+            <DialogContent className="sm:max-w-xl">
               <DialogHeader>
                 <DialogTitle>Create a New Company</DialogTitle>
                 <DialogDescription>
@@ -236,10 +279,10 @@ export default function CompaniesPage() {
                     company.archived ? 'bg-muted/50' : ''
                   }`}
                 >
-                  <CardHeader className="flex-row items-start justify-between gap-4">
+                  <CardHeader className="flex-row items-start justify-between gap-4 pb-4">
                     <div className="space-y-1.5">
                       <CardTitle>{company.name}</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="line-clamp-2">
                         {company.description || 'No description provided.'}
                       </CardDescription>
                     </div>
@@ -251,11 +294,7 @@ export default function CompaniesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleArchive(company)}>
-                          {company.archived ? (
-                            <Archive className="mr-2" />
-                          ) : (
-                            <Archive className="mr-2" />
-                          )}
+                          <Archive className="mr-2" />
                           <span>
                             {company.archived ? 'Restore' : 'Archive'}
                           </span>
@@ -263,16 +302,37 @@ export default function CompaniesPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </CardHeader>
-                  <CardContent className="mt-auto">
-                    {/* Placeholder for future content */}
-                    <div className="text-sm text-muted-foreground">
-                      {company.archived && (
-                        <span className="text-destructive font-semibold">
-                          Archived
-                        </span>
-                      )}
-                    </div>
+                  <CardContent className="space-y-3 text-sm mt-auto pt-4 border-t">
+                    {company.contactPerson && (
+                       <div className="flex items-center gap-3">
+                        <User className="text-muted-foreground" />
+                        <span className="text-muted-foreground">{company.contactPerson}</span>
+                      </div>
+                    )}
+                    {company.email && (
+                       <div className="flex items-center gap-3">
+                        <Mail className="text-muted-foreground" />
+                        <a href={`mailto:${company.email}`} className="text-primary hover:underline">{company.email}</a>
+                      </div>
+                    )}
+                    {company.mobile && (
+                       <div className="flex items-center gap-3">
+                        <Phone className="text-muted-foreground" />
+                        <span className="text-muted-foreground">{company.mobile}</span>
+                      </div>
+                    )}
+                     {company.address && (
+                       <div className="flex items-center gap-3">
+                        <MapPin className="text-muted-foreground" />
+                        <span className="text-muted-foreground">{company.address}</span>
+                      </div>
+                    )}
                   </CardContent>
+                   {company.archived && (
+                      <div className="border-t text-center py-2 text-sm text-destructive font-semibold">
+                          Archived
+                      </div>
+                    )}
                 </Card>
               ))}
             </div>
@@ -292,3 +352,5 @@ export default function CompaniesPage() {
     </div>
   );
 }
+
+    
