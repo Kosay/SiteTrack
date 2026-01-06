@@ -79,15 +79,15 @@ service cloud.firestore {
      * @description Rules for a user's root document. This allows a user to
      *   create their own profile document, but not modify or delete it later.
      * @path /users/{userId}
-     * @allow (create) An authenticated user with UID 'user_abc' creating their
-     *   own document at `/users/user_abc`.
+     * @allow (create) Any authenticated user can create a user profile.
+     * @allow (get) Only the owner can get their own profile.
      * @deny (update) User 'user_abc' trying to update `/users/user_abc`.
      * @principle Enforces self-creation of a user's root document.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false; // Disallow listing all users.
-      allow create: if isOwner(userId);
+      allow create: if isSignedIn();
       allow update: if false;
       allow delete: if false;
     }
