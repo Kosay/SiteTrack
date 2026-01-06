@@ -4,7 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
-  title: 'SiteWise Tracker',
+  title: 'Site Tracker',
   description: 'Track progress at your construction site',
 };
 

@@ -9,7 +9,7 @@ export function Header() {
       <SidebarTrigger className="md:hidden" />
       <div className="flex items-center gap-2 md:hidden">
         <HardHat className="h-6 w-6 text-primary" />
-        <span className="text-lg font-bold">SiteWise</span>
+        <span className="text-lg font-bold">Site Tracker</span>
       </div>
       <div className="w-full flex-1">
         {/* Future elements like search or user menu can go here */}

@@ -28,7 +28,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <HardHat className="size-8 text-primary" />
           <h2 className="text-xl font-semibold text-sidebar-foreground">
-            SiteWise
+            Site Tracker
           </h2>
         </div>
       </SidebarHeader>
