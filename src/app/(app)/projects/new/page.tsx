@@ -26,15 +26,7 @@ import {
 } from '@/components/ui/select';
 
 // Step 1 Component
-const Step1_ProjectBasics = ({ formData, setFormData, companies, isLoadingCompanies }) => {
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-  
-  const handleSelectChange = (name, value) => {
-      setFormData(prev => ({...prev, [name]: value}));
-  }
+const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
 
   return (
     <div className="space-y-6">
@@ -126,6 +118,15 @@ export default function NewProjectWizard() {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+  
+  const handleSelectChange = (name: string, value: string) => {
+      setFormData(prev => ({...prev, [name]: value}));
+  }
+
   const CurrentStepComponent = steps[currentStep].component;
 
   const componentProps = {
@@ -133,6 +134,8 @@ export default function NewProjectWizard() {
     setFormData,
     companies,
     isLoadingCompanies,
+    handleChange,
+    handleSelectChange,
   };
 
   return (
