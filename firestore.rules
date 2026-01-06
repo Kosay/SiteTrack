@@ -5,6 +5,10 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
 
     match /companies/{companyId} {
       allow read, write: if isSignedIn();
@@ -13,9 +17,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isSignedIn();
     }
-
-    match /users/{userId}/project_memberships/{projectId} {
-       allow read, write: if isSignedIn();
+    
+    // Allow users to read/write their own subcollections
+    match /users/{userId}/{document=**} {
+      allow read, write: if isSignedIn() && isOwner(userId);
     }
 
     match /projects/{projectId} {
@@ -52,4 +57,3 @@ service cloud.firestore {
   }
 }
     
-  
