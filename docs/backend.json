@@ -69,7 +69,8 @@
         "doneWork": { "type": "number" },
         "approvedWork": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "archived": { "type": "boolean" }
       },
       "required": ["companyId", "name", "directorId", "pmId", "status", "createdAt"]
     },
@@ -257,5 +258,3 @@
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
   }
 }
-
-    

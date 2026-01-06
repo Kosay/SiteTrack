@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Briefcase,
   LoaderCircle,
@@ -10,6 +11,8 @@ import {
   User,
   CheckCircle,
   XCircle,
+  Archive,
+  Edit,
 } from 'lucide-react';
 import {
   Card,
@@ -24,6 +27,7 @@ import {
   useUser,
   useCollection,
   useMemoFirebase,
+  useAuth,
 } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Project, Company, User as SiteUser } from '@/lib/types';
@@ -47,7 +51,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addProject } from '@/lib/firebase-actions';
+import { addProject, updateProject } from '@/lib/firebase-actions';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 
 function ProjectForm({
   companies,
@@ -170,7 +181,10 @@ function ProjectForm({
 
 export default function ProjectsPage() {
   const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const projectsCollection = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
@@ -185,6 +199,45 @@ export default function ProjectsPage() {
   
   const isLoading = isLoadingProjects || isLoadingCompanies || isLoadingUsers;
 
+  const filteredProjects = useMemo(() => {
+    if (!projects) return [];
+    return projects.filter((project) =>
+      showArchived ? true : !project.archived
+    );
+  }, [projects, showArchived]);
+
+  const activeProjectsCount = useMemo(() => {
+    return projects?.filter(p => !p.archived && p.status === 'active').length || 0;
+  }, [projects]);
+
+
+  const handleArchive = async (project: Project) => {
+    if (!auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: 'You must be logged in to archive a project.',
+      });
+      return;
+    }
+    try {
+      await updateProject(project.id, { archived: !project.archived });
+      toast({
+        title: `Project ${project.archived ? 'Restored' : 'Archived'}`,
+        description: `${project.name} has been ${
+          project.archived ? 'restored' : 'archived'
+        }.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message,
+      });
+    }
+  };
+
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -194,27 +247,39 @@ export default function ProjectsPage() {
             Manage all ongoing and completed projects.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <PlusCircle className="mr-2" />
-            New Project
-          </Button>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create New Project</DialogTitle>
-              <DialogDescription>
-                Fill in the details to set up a new project.
-              </DialogDescription>
-            </DialogHeader>
-            {isLoading ? <LoaderCircle className="mx-auto my-8 h-8 w-8 animate-spin" /> : 
-              <ProjectForm 
-                companies={companies || []}
-                users={users || []}
-                onSuccess={() => setIsFormOpen(false)} 
-              />
-            }
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="show-archived"
+              checked={showArchived}
+              onCheckedChange={(checked) => setShowArchived(checked as boolean)}
+            />
+            <Label htmlFor="show-archived" className="text-sm font-medium">
+              Show Archived
+            </Label>
+          </div>
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <PlusCircle className="mr-2" />
+              New Project
+            </Button>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Create New Project</DialogTitle>
+                <DialogDescription>
+                  Fill in the details to set up a new project.
+                </DialogDescription>
+              </DialogHeader>
+              {isLoading ? <LoaderCircle className="mx-auto my-8 h-8 w-8 animate-spin" /> : 
+                <ProjectForm 
+                  companies={companies || []}
+                  users={users || []}
+                  onSuccess={() => setIsFormOpen(false)} 
+                />
+              }
+            </DialogContent>
+          </Dialog>
+        </div>
       </header>
 
       {isLoading ? (
@@ -227,22 +292,47 @@ export default function ProjectsPage() {
             <CardHeader>
               <CardTitle>Active Projects</CardTitle>
               <CardDescription>
-                {projects?.filter(p => p.status === 'active').length || 0} projects are currently active.
+                {activeProjectsCount} projects are currently active.
               </CardDescription>
             </CardHeader>
         </Card>
-        {projects && projects.length > 0 ? (
+        {filteredProjects && filteredProjects.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <Card key={project.id} className="flex flex-col">
-                <CardHeader>
-                    <div className="flex justify-between items-start">
+            {filteredProjects.map((project) => (
+              <Card key={project.id} className={`flex flex-col ${
+                    project.archived ? 'bg-muted/50' : ''
+                  }`}>
+                <CardHeader className="flex-row items-start justify-between gap-4 pb-4">
+                    <div className="space-y-1.5">
                         <CardTitle className="line-clamp-1">{project.name}</CardTitle>
+                        <CardDescription>{companyMap.get(project.companyId) || 'Unknown Company'}</CardDescription>
+                    </div>
+                     <div className="flex items-center gap-2">
                         <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
                             {project.status}
                         </Badge>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                <MoreVertical />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                <Link href={`/projects/${project.id}/edit`}>
+                                    <Edit className="mr-2" />
+                                    <span>Edit</span>
+                                </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleArchive(project)}>
+                                <Archive className="mr-2" />
+                                <span>
+                                    {project.archived ? 'Restore' : 'Archive'}
+                                </span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
-                  <CardDescription>{companyMap.get(project.companyId) || 'Unknown Company'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm mt-auto pt-4 border-t">
                   <div className="flex items-center gap-3">
@@ -256,6 +346,11 @@ export default function ProjectsPage() {
                     <span className="text-muted-foreground">{userMap.get(project.pmId) || 'N/A'}</span>
                   </div>
                 </CardContent>
+                {project.archived && (
+                    <div className="border-t text-center py-2 text-sm text-destructive font-semibold">
+                        Archived
+                    </div>
+                )}
               </Card>
             ))}
           </div>
@@ -264,7 +359,9 @@ export default function ProjectsPage() {
             <Briefcase className="w-12 h-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-semibold">No Projects Found</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Get started by creating a new project.
+               {showArchived
+                  ? 'There are no archived projects.'
+                  : 'Get started by creating a new project.'}
             </p>
           </div>
         )}
@@ -273,5 +370,3 @@ export default function ProjectsPage() {
     </div>
   );
 }
-
-    

@@ -194,6 +194,22 @@ export async function addProject(data: AddProjectData): Promise<void> {
   addDocumentNonBlocking(projectsCollectionRef, newProject);
 }
 
+/**
+ * Updates an existing project in the global collection.
+ * @param projectId - The ID of the project to update.
+ * @param data - The data to update.
+ */
+export async function updateProject(
+  projectId: string,
+  data: Partial<Project>
+): Promise<void> {
+  const projectDocRef = doc(getDb(), 'projects', projectId);
+  updateDocumentNonBlocking(projectDocRef, {
+      ...data,
+      updatedAt: serverTimestamp()
+  });
+}
+
 type CreateInvitationData = Omit<Invitation, 'id' | 'code' | 'status' | 'createdAt'>;
 
 /**

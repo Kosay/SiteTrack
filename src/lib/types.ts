@@ -40,7 +40,8 @@ export interface Project {
     doneWork: number;
     approvedWork: number;
     createdAt: any; // Firestore Timestamp
-    updatedAt: any; // Firestore Timestamp
+    updatedAt: any; // Firestore Timestamp;
+    archived?: boolean;
 }
 
 export interface Equipment {
@@ -282,5 +283,3 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
-
-    
