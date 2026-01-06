@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useMemo, ChangeEvent } from 'react';
+import { useState, useMemo, ChangeEvent, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks, Boxes } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks, Boxes, Upload, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -34,6 +34,8 @@ import { useToast } from '@/hooks/use-toast';
 import { addUnit } from '@/lib/firebase-actions';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import Papa from 'papaparse';
+
 
 // Step 1 Component
 const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
@@ -660,10 +662,11 @@ const Step7_DefineActivities = ({ formData, handleMultiSelectChange }) => {
 };
 
 
-const Step8_SubActivities = ({ formData, units, handleMultiSelectChange }) => {
+const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleImport, handleExport }) => {
     const { toast } = useToast();
     const [currentSubActivity, setCurrentSubActivity] = useState({ name: '', description: '', unit: '', totalWork: 0 });
     const [zoneQuantities, setZoneQuantities] = useState({});
+    const importInputRef = useRef<HTMLInputElement>(null);
 
     const activities = formData.activities || [];
     const zones = formData.zones || [];
@@ -725,10 +728,29 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange }) => {
     return (
         <div className="space-y-6">
             <CardHeader className="p-0">
-                <CardTitle>Step 8: Define Sub-activities & BoQ</CardTitle>
-                <CardDescription>
-                    For each activity, define its sub-activities and assign quantities for each zone.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle>Step 8: Define Sub-activities & BoQ</CardTitle>
+                        <CardDescription>
+                            For each activity, define its sub-activities and assign quantities for each zone.
+                        </CardDescription>
+                    </div>
+                     <div className="flex gap-2">
+                        <input
+                            type="file"
+                            ref={importInputRef}
+                            className="hidden"
+                            accept=".csv"
+                            onChange={handleImport}
+                        />
+                        <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+                            <Upload className="mr-2" /> Import CSV
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleExport}>
+                            <Download className="mr-2" /> Export CSV
+                        </Button>
+                    </div>
+                </div>
             </CardHeader>
 
             <Accordion type="single" collapsible className="w-full">
@@ -824,6 +846,7 @@ export default function NewProjectWizard() {
     subActivities: [],
   });
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollection);
@@ -869,6 +892,101 @@ export default function NewProjectWizard() {
     setFormData(prev => ({...prev, [name]: value}));
   }
 
+  const handleExport = () => {
+        const { activities, zones, subActivities } = formData;
+        if (!subActivities || subActivities.length === 0) {
+            toast({ variant: "destructive", title: "No data to export" });
+            return;
+        }
+
+        const activityMap = new Map(activities.map((act, index) => [index, act]));
+        const zoneNames = zones.map(zone => zone.name);
+
+        const dataToExport = subActivities.map(sa => {
+            const activity = activityMap.get(sa.activityId);
+            const row = {
+                'ActivityCode': activity?.code || '',
+                'ActivityName': activity?.name || '',
+                'SubActivityName': sa.name,
+                'Description': sa.description,
+                'Unit': sa.unit,
+                'TotalWork': sa.totalWork,
+            };
+            zoneNames.forEach(zoneName => {
+                row[zoneName] = sa.zoneQuantities[zoneName] || 0;
+            });
+            return row;
+        });
+
+        const csv = Papa.unparse(dataToExport);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'boq_export.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({ title: "Export successful" });
+  };
+
+  const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+            const parsedData = results.data;
+            const { activities, zones } = formData;
+            const activityCodeMap = new Map(activities.map((act, index) => [act.code, index]));
+            const zoneNames = new Set(zones.map(z => z.name));
+
+            const newSubActivities = [];
+            let errorOccurred = false;
+
+            for (const row of parsedData) {
+                const { ActivityCode, SubActivityName, Description, Unit, TotalWork, ...zoneQtys } = row;
+
+                if (!activityCodeMap.has(ActivityCode)) {
+                    toast({ variant: "destructive", title: "Import Error", description: `Activity code "${ActivityCode}" not found in project.` });
+                    errorOccurred = true;
+                    break;
+                }
+
+                const zoneQuantities = {};
+                for (const zoneName in zoneQtys) {
+                    if (zoneNames.has(zoneName)) {
+                        zoneQuantities[zoneName] = Number(zoneQtys[zoneName]) || 0;
+                    }
+                }
+                
+                newSubActivities.push({
+                    name: SubActivityName,
+                    description: Description || '',
+                    unit: Unit,
+                    totalWork: Number(TotalWork) || 0,
+                    activityId: activityCodeMap.get(ActivityCode),
+                    zoneQuantities,
+                });
+            }
+
+            if (!errorOccurred) {
+                handleMultiSelectChange('subActivities', [...formData.subActivities, ...newSubActivities]);
+                toast({ title: "Import Successful", description: `${newSubActivities.length} sub-activities were imported.` });
+            }
+        },
+        error: (error) => {
+            toast({ variant: "destructive", title: "CSV Parsing Error", description: error.message });
+        }
+    });
+     // Reset file input
+    if (event.target) {
+        event.target.value = '';
+    }
+  };
+
+
   const CurrentStepComponent = steps[currentStep].component;
 
   const componentProps = {
@@ -883,6 +1001,8 @@ export default function NewProjectWizard() {
     handleChange,
     handleSelectChange,
     handleMultiSelectChange,
+    handleExport,
+    handleImport,
   };
 
   return (
