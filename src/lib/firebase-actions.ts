@@ -213,4 +213,18 @@ export async function createInvitation(data: CreateInvitationData): Promise<void
   await addDocumentNonBlocking(invitationsCollectionRef, newInvitation);
 }
 
-  
+/**
+ * Updates an existing user in the global collection.
+ * @param userId - The ID of the user to update.
+ * @param data - The data to update.
+ */
+export async function updateUser(
+  userId: string,
+  data: Partial<Omit<User, 'id' | 'email'>>
+): Promise<void> {
+  const userDocRef = doc(getDb(), 'users', userId);
+  updateDocumentNonBlocking(userDocRef, {
+      ...data,
+      updatedAt: serverTimestamp()
+  });
+}

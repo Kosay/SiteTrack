@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { LoaderCircle, PlusCircle, UserPlus, Users } from 'lucide-react';
+import { LoaderCircle, PlusCircle, UserPlus, Users, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createInvitation } from '@/lib/firebase-actions';
 import { useAuth, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -212,6 +213,7 @@ export default function UsersPage() {
                             <TableHead>Email</TableHead>
                             <TableHead>Position</TableHead>
                             <TableHead>Company</TableHead>
+                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -221,10 +223,18 @@ export default function UsersPage() {
                             <TableCell>{user.email}</TableCell>
                             <TableCell>{user.position}</TableCell>
                             <TableCell>{companyMap.get(user.companyId) || 'N/A'}</TableCell>
+                            <TableCell className="text-right">
+                                <Button variant="ghost" size="icon" asChild>
+                                  <Link href={`/users/${user.id}/edit`}>
+                                    <Edit className="h-4 w-4" />
+                                    <span className="sr-only">Edit User</span>
+                                  </Link>
+                                </Button>
+                            </TableCell>
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
+                                <TableCell colSpan={5} className="h-24 text-center">
                                     No registered users yet.
                                 </TableCell>
                             </TableRow>
@@ -273,5 +283,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-  
