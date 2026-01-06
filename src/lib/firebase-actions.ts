@@ -4,19 +4,18 @@ import {
   addDoc,
   collection,
   doc,
+  getFirestore,
   serverTimestamp,
   updateDoc,
   type Auth,
   type Firestore,
 } from 'firebase/firestore';
-import { getFirestore } from 'firebase/firestore';
-import { getFirebaseApp } from '@/firebase/provider';
-import type { ProgressLog, Company } from './types';
+import type { Company, ProgressLog } from './types';
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 
 // Helper to get Firestore instance
 function getDb(): Firestore {
-  return getFirestore(getFirebaseApp());
+  return getFirestore();
 }
 
 type AddProgressLogData = Omit<ProgressLog, 'id' | 'logDate'>;
