@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Papa from 'papaparse';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 
 
 // Step 1 Component
