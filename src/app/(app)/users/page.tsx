@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import Papa from 'papaparse';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSuccess: () => void }) {
@@ -156,6 +157,8 @@ function InviteUserForm({ companies, onSuccess }: { companies: Company[], onSucc
 
 export default function UsersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [nameFilter, setNameFilter] = useState('');
+  const [snFilter, setSnFilter] = useState('');
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -175,6 +178,25 @@ export default function UsersPage() {
   const pendingInvitations = useMemo(() => invitations?.filter(inv => inv.status === 'pending') || [], [invitations]);
 
   const isLoading = isLoadingUsers || isLoadingCompanies || isLoadingInvitations;
+  
+  const groupedAndFilteredUsers = useMemo(() => {
+    if (!users || !companies) return new Map<string, User[]>();
+
+    const filtered = users.filter(user => {
+      const nameMatch = user.name.toLowerCase().includes(nameFilter.toLowerCase());
+      const snMatch = user.salaryNumber ? user.salaryNumber.toLowerCase().includes(snFilter.toLowerCase()) : snFilter === '';
+      return nameMatch && snMatch;
+    });
+
+    return filtered.reduce((acc, user) => {
+      const companyId = user.companyId;
+      if (!acc.has(companyId)) {
+        acc.set(companyId, []);
+      }
+      acc.get(companyId)!.push(user);
+      return acc;
+    }, new Map<string, User[]>());
+  }, [users, companies, nameFilter, snFilter]);
 
   const handleExport = () => {
     if (!users || users.length === 0) {
@@ -307,44 +329,73 @@ export default function UsersPage() {
                         {users?.length || 0} users have created an account.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>S.N.</TableHead>
-                            <TableHead>Position</TableHead>
-                            <TableHead>Company</TableHead>
-                             <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {users && users.length > 0 ? users.map((user) => (
-                            <TableRow key={user.id}>
-                            <TableCell className="font-medium">{user.name}</TableCell>
-                            <TableCell>{user.email}</TableCell>
-                             <TableCell>{user.salaryNumber || 'N/A'}</TableCell>
-                            <TableCell>{user.position}</TableCell>
-                            <TableCell>{companyMap.get(user.companyId) || 'N/A'}</TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" asChild>
-                                  <Link href={`/users/${user.id}/edit`}>
-                                    <Edit className="h-4 w-4" />
-                                    <span className="sr-only">Edit User</span>
-                                  </Link>
-                                </Button>
-                            </TableCell>
-                            </TableRow>
-                        )) : (
-                            <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
-                                    No registered users yet.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                        </TableBody>
-                    </Table>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input 
+                        placeholder="Search by name..."
+                        value={nameFilter}
+                        onChange={(e) => setNameFilter(e.target.value)}
+                      />
+                       <Input 
+                        placeholder="Search by S.N...."
+                        value={snFilter}
+                        onChange={(e) => setSnFilter(e.target.value)}
+                      />
+                    </div>
+                    <Accordion type="multiple" className="w-full" defaultValue={companies?.map(c => c.id)}>
+                      {companies?.map(company => {
+                        const companyUsers = groupedAndFilteredUsers.get(company.id) || [];
+                        if (companyUsers.length === 0 && (nameFilter || snFilter)) return null;
+
+                        return (
+                          <AccordionItem value={company.id} key={company.id}>
+                            <AccordionTrigger>
+                              <div className="flex items-center gap-2">
+                                {company.name}
+                                <Badge variant="secondary">{companyUsers.length}</Badge>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                               <Table>
+                                  <TableHeader>
+                                  <TableRow>
+                                      <TableHead>Name</TableHead>
+                                      <TableHead>Email</TableHead>
+                                      <TableHead>S.N.</TableHead>
+                                      <TableHead>Position</TableHead>
+                                      <TableHead className="text-right">Actions</TableHead>
+                                  </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                  {companyUsers.length > 0 ? companyUsers.map((user) => (
+                                      <TableRow key={user.id}>
+                                      <TableCell className="font-medium">{user.name}</TableCell>
+                                      <TableCell>{user.email}</TableCell>
+                                      <TableCell>{user.salaryNumber || 'N/A'}</TableCell>
+                                      <TableCell>{user.position}</TableCell>
+                                      <TableCell className="text-right">
+                                          <Button variant="ghost" size="icon" asChild>
+                                            <Link href={`/users/${user.id}/edit`}>
+                                              <Edit className="h-4 w-4" />
+                                              <span className="sr-only">Edit User</span>
+                                            </Link>
+                                          </Button>
+                                      </TableCell>
+                                      </TableRow>
+                                  )) : (
+                                      <TableRow>
+                                          <TableCell colSpan={5} className="h-24 text-center">
+                                              No users match the current filter in this company.
+                                          </TableCell>
+                                      </TableRow>
+                                  )}
+                                  </TableBody>
+                              </Table>
+                            </AccordionContent>
+                          </AccordionItem>
+                        )
+                      })}
+                    </Accordion>
                 </CardContent>
             </Card>
 
