@@ -206,12 +206,15 @@ export default function EditCompanyPage() {
                     control={form.control}
                     name="directorId"
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                        value={field.value || 'none'}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a director" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {directors.map((d) => (
                             <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                           ))}
@@ -226,12 +229,15 @@ export default function EditCompanyPage() {
                     control={form.control}
                     name="pmId"
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                        value={field.value || 'none'}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a PM" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {projectManagers.map((pm) => (
                             <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
                           ))}
