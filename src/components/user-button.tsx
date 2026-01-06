@@ -37,10 +37,12 @@ export function UserButton() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return '';
     return name
       .split(' ')
       .map((n) => n[0])
-      .join('');
+      .join('')
+      .toUpperCase();
   };
 
   if (isLoading || !user) {
@@ -71,7 +73,7 @@ export function UserButton() {
           </Avatar>
           <div className="flex-1 overflow-hidden">
             <p className="truncate text-sm font-medium text-sidebar-foreground">
-              {userProfile?.name || 'User'}
+              {userProfile?.name || user.email || 'User'}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/70">
               {userProfile?.role || 'No role assigned'}

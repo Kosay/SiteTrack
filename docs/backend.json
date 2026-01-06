@@ -9,13 +9,26 @@
           "type": "string",
           "description": "The user's full name."
         },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
         "role": {
           "type": "string",
           "description": "The user's role in the application (e.g., 'Admin', 'Manager')."
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The ID of the project the user is assigned to. Can be null if unassigned."
         }
       },
       "required": [
         "name",
+        "email",
         "role"
       ]
     },
@@ -289,8 +302,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the Site Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
+    "reasoning": "The Firestore structure is designed to provide a clear, secure, and scalable solution for the Site Tracker application, focusing on progress tracking for construction activities. Authorization Independence is achieved via path-based ownership for `ConstructionActivity` and `ProgressLog`, ensuring that access control is directly tied to the user and the resource, eliminating the need for `get()` calls in security rules. \n\nSpecifically:\n\n*   `/users/{userId}`: Stores public user profiles. Access is controlled so that users can only modify their own profiles, but other authenticated users might be able to read public information.\n*   `/users/{userId}/companies/{companyId}`: Path-based ownership for a user's companies.\n*   `/users/{userId}/constructionActivities/{activityId}`: This path establishes a direct ownership relationship between a user and their construction activities. Only the authenticated user (identified by `{userId}`) has access to the activities within their path.  This supports secure `list` operations as only the current user's activities are accessible at this path.\n*   `/users/{userId}/constructionActivities/{activityId}/progressLogs/{logId}`: This path continues the ownership hierarchy. Each progress log is associated with a specific construction activity owned by the user. This allows efficient and secure retrieval of progress logs related to an activity.\n*   `/reports/{reportId}`: Reports are stored in a top-level collection. Access to reports can be controlled via a `members` map within each report document, enabling collaborative viewing/editing, or restricted to the report creator. Alternatively, reports can be stored under the user's collection to give them full ownership.\n\nThis structure facilitates simple, robust, and easily debuggable security rules, aligning with the core design principles."
   }
 }
-
-    

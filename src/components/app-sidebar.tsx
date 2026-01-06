@@ -8,6 +8,7 @@ import {
   ClipboardPlus,
   FileText,
   Building2,
+  Users,
 } from 'lucide-react';
 
 import {
@@ -26,6 +27,7 @@ const navItems = [
   { label: 'Progress Log', href: '/progress', icon: ClipboardPlus },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
+  { label: 'Users', href: '/users', icon: Users },
 ];
 
 export function AppSidebar() {

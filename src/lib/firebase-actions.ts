@@ -8,15 +8,46 @@ import {
   updateDoc,
   type Auth,
   type Firestore,
+  setDoc,
 } from 'firebase/firestore';
-import type { Company, ProgressLog } from './types';
-import { addDocumentNonBlocking, updateDocumentNonBlocking, getSdks } from '@/firebase';
+import type { Company, ProgressLog, UserProfile } from './types';
+import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, getSdks } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
 // Helper to get Firestore instance
 function getDb(): Firestore {
   return getFirestore();
 }
+
+/**
+ * Creates or overwrites a user profile document.
+ * @param auth - The Firebase Auth instance (used for checking admin/permissions in a real app).
+ * @param uid - The UID of the user whose profile is being created.
+ * @param data - The user profile data.
+ */
+export async function createUserProfile(
+  auth: Auth,
+  uid: string,
+  data: Omit<UserProfile, 'project'> & { project: null }
+): Promise<void> {
+  // In a real-world scenario, you'd add a security rule to ensure only admins
+  // or the user themselves (on first write) can create this document.
+  // For this implementation, we allow it, assuming an admin is performing this action.
+
+  if (!uid) {
+    throw new Error('A valid User ID (UID) must be provided.');
+  }
+
+  const userProfileRef = doc(getDb(), `users/${uid}`);
+  const newUserProfile = {
+    ...data,
+    createdAt: serverTimestamp(), // Optional: to track when the profile was made
+  };
+
+  // Use setDoc to create a document with a specific ID (the UID)
+  setDocumentNonBlocking(userProfileRef, newUserProfile, {});
+}
+
 
 type AddProgressLogData = Omit<ProgressLog, 'id' | 'logDate'>;
 
@@ -96,5 +127,3 @@ export async function updateCompany(
   const companyDocRef = doc(getDb(), `users/${userId}/companies`, companyId);
   updateDocumentNonBlocking(companyDocRef, data);
 }
-
-    

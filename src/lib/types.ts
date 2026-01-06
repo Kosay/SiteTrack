@@ -2,7 +2,9 @@
 
 export interface UserProfile {
   name: string;
+  email: string;
   role: string;
+  project: string | null;
 }
 
 export interface Company {
@@ -46,5 +48,3 @@ export interface Report {
   activityIds: string[];
   content: string;
 }
-
-    
