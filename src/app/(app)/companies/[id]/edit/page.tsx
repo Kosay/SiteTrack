@@ -49,7 +49,6 @@ const formSchema = z.object({
 type CompanyFormValues = z.infer<typeof formSchema>;
 
 export default function EditCompanyPage({ params }: { params: { id: string } }) {
-  const { id } = params;
   const firestore = useFirestore();
   const auth = useAuth();
   const router = useRouter();
@@ -57,8 +56,8 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const companyRef = useMemoFirebase(
-    () => doc(firestore, 'companies', id),
-    [firestore, id]
+    () => doc(firestore, 'companies', params.id),
+    [firestore, params.id]
   );
   const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
 
@@ -107,7 +106,7 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
     }
     setIsSubmitting(true);
     try {
-      await updateCompany(auth, id, values);
+      await updateCompany(auth, params.id, values);
       toast({
         title: 'Company Updated',
         description: `${values.name} has been updated successfully.`,
@@ -228,7 +227,7 @@ export default function EditCompanyPage({ params }: { params: { id: string } }) 
                       <Select onValueChange={field.onChange} value={field.value}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a PM" />
-                        </SelectTrigger>
+                        </Trigger>
                         <SelectContent>
                           <SelectItem value="">None</SelectItem>
                           {projectManagers.map((pm) => (
