@@ -13,7 +13,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -243,4 +243,25 @@ export async function updateUser(
       ...data,
       updatedAt: serverTimestamp()
   });
+}
+
+type AddUnitData = Omit<Unit, 'id'>;
+
+/**
+ * Adds a new global unit of measurement.
+ * @param data - The unit data to add.
+ */
+export async function addUnit(data: AddUnitData): Promise<void> {
+  const unitsCollectionRef = collection(getDb(), 'units');
+  addDocumentNonBlocking(unitsCollectionRef, { ...data, createdAt: serverTimestamp() });
+}
+
+/**
+ * Deletes a global unit of measurement.
+ * @param unitId - The ID of the unit to delete.
+ */
+export async function deleteUnit(unitId: string): Promise<void> {
+    if (!unitId) throw new Error('A valid Unit ID must be provided.');
+    const unitDocRef = doc(getDb(), 'units', unitId);
+    deleteDocumentNonBlocking(unitDocRef);
 }

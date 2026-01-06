@@ -143,6 +143,11 @@ export interface EquipmentLog {
     details: object;
 }
 
+export interface Unit {
+    id: string;
+    name: string;
+}
+
 export interface Zone {
     id: string;
     name: string;

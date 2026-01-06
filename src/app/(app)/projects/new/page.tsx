@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,11 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company, User } from '@/lib/types';
+import type { Company, User, Unit } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -25,9 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { addUnit } from '@/lib/firebase-actions';
 
 // Step 1 Component
 const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleChange, handleSelectChange }) => {
@@ -352,8 +355,115 @@ const Step4_Support = ({ formData, users, isLoadingUsers, handleMultiSelectChang
 };
 
 
+function AddUnitForm({ onSuccess }: { onSuccess: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    const name = formData.get('name') as string;
+
+    if (!name) {
+      toast({ variant: 'destructive', title: 'Unit name is required.' });
+      setIsSubmitting(false);
+      return;
+    }
+    try {
+      await addUnit({ name });
+      toast({ title: 'Unit Created', description: `${name} has been added.` });
+      onSuccess();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Failed to create unit', description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="name">Unit Name</Label>
+        <Input id="name" name="name" placeholder="e.g., 'm³', 'Linear Meter', 'ton'" required />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">Cancel</Button>
+        </DialogClose>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+          Create Unit
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+const Step5_DefineUnits = ({ formData, units, isLoadingUnits, handleMultiSelectChange }) => {
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    
+    const toggleUnitSelection = (unitId: string) => {
+        const currentIds = formData.unitIds || [];
+        const newIds = currentIds.includes(unitId)
+            ? currentIds.filter(id => id !== unitId)
+            : [...currentIds, unitId];
+        handleMultiSelectChange('unitIds', newIds);
+    };
+
+    if (isLoadingUnits) return <LoaderCircle className="animate-spin" />;
+
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle>Step 5: Define Project Units</CardTitle>
+                        <CardDescription>
+                            Select all units of measurement that will be used in this project.
+                        </CardDescription>
+                    </div>
+                    <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> New Unit</Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Create a New Global Unit</DialogTitle>
+                                <DialogDescription>
+                                    This unit will be available for all future projects.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <AddUnitForm onSuccess={() => setIsFormOpen(false)} />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </CardHeader>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                {units && units.length > 0 ? (
+                    units.map(unit => (
+                        <div key={unit.id} className="flex items-center space-x-3 rounded-md border p-3">
+                            <Checkbox 
+                                id={`unit-${unit.id}`}
+                                checked={formData.unitIds?.includes(unit.id) || false}
+                                onCheckedChange={() => toggleUnitSelection(unit.id)}
+                            />
+                            <Label htmlFor={`unit-${unit.id}`} className="font-medium text-sm w-full cursor-pointer">
+                                {unit.name}
+                            </Label>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No global units found. Add one to get started.</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
 // Placeholder components for other steps
-const Step5 = () => <div><CardTitle>Step 5: Define Units</CardTitle></div>;
 const Step6 = () => <div><CardTitle>Step 6: Define Zones</CardTitle></div>;
 const Step7 = () => <div><CardTitle>Step 7: Define Activities</CardTitle></div>;
 const Step8 = () => <div><CardTitle>Step 8: Define Sub-activities & Quantities</CardTitle></div>;
@@ -368,6 +478,7 @@ export default function NewProjectWizard() {
     safetyOfficerIds: [],
     docControllerIds: [],
     logisticIds: [],
+    unitIds: [],
   });
   const firestore = useFirestore();
 
@@ -377,6 +488,9 @@ export default function NewProjectWizard() {
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersCollection);
 
+  const unitsCollection = useMemoFirebase(() => collection(firestore, 'units'), [firestore]);
+  const { data: units, isLoading: isLoadingUnits } = useCollection<Unit>(unitsCollection);
+
   const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
 
   const steps = [
@@ -384,7 +498,7 @@ export default function NewProjectWizard() {
     { name: 'Leadership', component: (props) => <Step2_Leadership {...props} /> },
     { name: 'Team', component: (props) => <Step3_Team {...props} /> },
     { name: 'Support', component: (props) => <Step4_Support {...props} /> },
-    { name: 'Units', component: Step5 },
+    { name: 'Units', component: (props) => <Step5_DefineUnits {...props} /> },
     { name: 'Zones', component: Step6 },
     { name: 'Activities', component: Step7 },
     { name: 'Sub-activities', component: Step8 },
@@ -399,7 +513,7 @@ export default function NewProjectWizard() {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -420,6 +534,8 @@ export default function NewProjectWizard() {
     isLoadingCompanies,
     users,
     isLoadingUsers,
+    units,
+    isLoadingUnits,
     userMap,
     handleChange,
     handleSelectChange,

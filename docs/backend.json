@@ -144,6 +144,10 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "Equipment Name", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["name"]
     },
+    "Unit": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Unit", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["name"]
+    },
     "Zone": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "Zone", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["name"]
@@ -249,6 +253,7 @@
     "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
     "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },
     "/invitations/{invitationId}": { "schema": { "$ref": "#/entities/Invitation" } },
+    "/units/{unitId}": { "schema": { "$ref": "#/entities/Unit" } },
     "/projects/{projectId}/zones/{zoneId}": { "schema": { "$ref": "#/entities/Zone" } },
     "/projects/{projectId}/activities/{activityId}": { "schema": { "$ref": "#/entities/Activity" } },
     "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivity" } },
