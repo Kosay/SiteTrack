@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
-import type { Project, Activity } from '@/lib/types';
+import { collection, query, where } from 'firebase/firestore';
+import type { Project, Activity, Company } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -126,19 +126,30 @@ function ActivityForm({
 export default function ActivitiesPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | undefined>(undefined);
-
-  const projectsCollectionRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
-  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsCollectionRef);
+  
+  const companiesCollectionRef = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
+  const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollectionRef);
+  
+  const projectsQuery = useMemoFirebase(() => {
+    if (!selectedCompanyId) return null;
+    return query(collection(firestore, 'projects'), where('companyId', '==', selectedCompanyId));
+  }, [firestore, selectedCompanyId]);
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsQuery);
 
   const activitiesCollectionRef = useMemoFirebase(() => {
     if (!selectedProjectId) return null;
     return collection(firestore, `projects/${selectedProjectId}/activities`);
   }, [firestore, selectedProjectId]);
-
   const { data: activities, isLoading: isLoadingActivities } = useCollection<Activity>(activitiesCollectionRef);
+
+  const handleSelectCompany = (companyId: string) => {
+    setSelectedCompanyId(companyId);
+    setSelectedProjectId(null); // Reset project when company changes
+  };
 
   const handleSelectProject = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -164,7 +175,7 @@ export default function ActivitiesPage() {
     }
   };
 
-  const isLoading = isLoadingProjects || (selectedProjectId && isLoadingActivities);
+  const isLoading = isLoadingCompanies || isLoadingProjects || isLoadingActivities;
 
   return (
     <div className="flex flex-col gap-8">
@@ -173,25 +184,52 @@ export default function ActivitiesPage() {
         <p className="text-muted-foreground">Manage activities for each project.</p>
       </header>
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle>Select a Project</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoadingProjects ? <LoaderCircle className="animate-spin" /> :
-            <Select onValueChange={handleSelectProject} value={selectedProjectId || ''}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a project to view its activities" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects?.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2 max-w-4xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>Step 1: Select Company</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingCompanies ? <LoaderCircle className="animate-spin" /> :
+              <Select onValueChange={handleSelectCompany} value={selectedCompanyId || ''}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+          </CardContent>
+        </Card>
+
+        {selectedCompanyId && (
+            <Card>
+                <CardHeader>
+                <CardTitle>Step 2: Select Project</CardTitle>
+                </CardHeader>
+                <CardContent>
+                {isLoadingProjects ? <LoaderCircle className="animate-spin" /> :
+                    <Select onValueChange={handleSelectProject} value={selectedProjectId || ''} disabled={!projects || projects.length === 0}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {projects?.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                }
+                {!isLoadingProjects && projects?.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">No projects found for this company.</p>
+                )}
+                </CardContent>
+            </Card>
+        )}
+      </div>
 
       {selectedProjectId && (
         <Card>
@@ -218,7 +256,7 @@ export default function ActivitiesPage() {
             </Dialog>
           </CardHeader>
           <CardContent>
-            {isLoading ? <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin" /></div> :
+            {isLoadingActivities ? <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin" /></div> :
               activities && activities.length > 0 ? (
                 <ul className="space-y-3">
                   {activities.map((activity) => (
