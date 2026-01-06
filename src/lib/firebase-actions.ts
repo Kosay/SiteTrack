@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -86,7 +87,7 @@ export async function addProgressLog(
   addDocumentNonBlocking(logsCollectionRef, newLog);
 }
 
-type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorId' | 'pmId' | 'createdAt' | 'updatedAt'>;
+type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorIds' | 'pmIds' | 'createdAt' | 'updatedAt'>;
 
 /**
  * Adds a new company to the global collection.
@@ -355,4 +356,100 @@ export async function deleteSubActivity(projectId: string, activityId: string, s
     if (!projectId || !activityId || !subActivityId) throw new Error("Project, Activity, and Sub-Activity IDs are required.");
     const subActivityDocRef = doc(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`, subActivityId);
     await deleteDoc(subActivityDocRef);
+}
+
+
+export async function createProjectFromWizard(db: Firestore, formData: any, collections: { users: User[], companies: Company[] }): Promise<void> {
+  const { users, companies } = collections;
+  const userMap = new Map(users.map(u => [u.id, u]));
+
+  const batch = writeBatch(db);
+
+  // 1. Create Project
+  const projectRef = doc(collection(db, 'projects'));
+  const projectData: Partial<Project> = {
+    name: formData.name,
+    companyId: formData.companyId,
+    directorId: formData.directorId,
+    pmId: formData.pmId,
+    status: formData.status,
+    address: formData.address,
+    googleMapsUrl: formData.googleMapsUrl,
+    kmlUrl: formData.kmlUrl,
+    archived: false,
+    totalWork: formData.subActivities.reduce((acc, sa) => acc + (sa.totalWork || 0), 0),
+    doneWork: 0,
+    approvedWork: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  batch.set(projectRef, projectData);
+
+  // 2. Add Members
+  const team = [
+    { id: formData.directorId, role: 'director' },
+    { id: formData.pmId, role: 'pm' },
+    ...(formData.cmIds || []).map(id => ({ id, role: 'cm' })),
+    ...(formData.engineerIds || []).map(id => ({ id, role: 'engineer' })),
+    ...(formData.safetyOfficerIds || []).map(id => ({ id, role: 'safety' })),
+    ...(formData.docControllerIds || []).map(id => ({ id, role: 'doc_controller' })),
+    ...(formData.logisticIds || []).map(id => ({ id, role: 'logistics' })),
+  ];
+  
+  for (const member of team) {
+    if (member.id) {
+      const user = userMap.get(member.id);
+      if (user) {
+        const memberRef = doc(db, `projects/${projectRef.id}/members/${member.id}`);
+        batch.set(memberRef, {
+          role: member.role,
+          companyId: user.companyId,
+          userName: user.name,
+          position: user.position,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  // 3. Add Zones
+  for (const zone of formData.zones || []) {
+      const zoneRef = doc(collection(db, `projects/${projectRef.id}/zones`));
+      batch.set(zoneRef, { ...zone, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }
+
+  // 4. Add Activities and Sub-activities
+  const activityPromises = (formData.activities || []).map(async (activity, index) => {
+    const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
+    batch.set(activityRef, {
+      name: activity.name,
+      code: activity.code,
+      description: activity.description,
+      totalWork: 0, // This will be aggregated from sub-activities
+      doneWork: 0,
+      approvedWork: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const subActivitiesForThis = (formData.subActivities || []).filter(sa => sa.activityId === index);
+    for (const subActivity of subActivitiesForThis) {
+      const subActivityRef = doc(collection(db, `projects/${projectRef.id}/activities/${activityRef.id}/subactivities`));
+      batch.set(subActivityRef, {
+        name: subActivity.name,
+        description: subActivity.description,
+        unit: subActivity.unit,
+        totalWork: subActivity.totalWork,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      // Here you could also add zone quantities if needed, similar to other batch writes
+    }
+  });
+
+  await Promise.all(activityPromises);
+    
+  // Commit the batch
+  await batch.commit();
 }

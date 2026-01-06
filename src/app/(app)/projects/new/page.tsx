@@ -12,9 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks, Boxes, Upload, Download } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIcon, Check, Settings, Layout, ListChecks, Boxes, Upload, Download, Package, Users, HardHat } from 'lucide-react';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { Company, User, Unit, Zone, Activity, SubActivity } from '@/lib/types';
 import { Label } from '@/components/ui/label';
@@ -31,10 +31,11 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { addUnit } from '@/lib/firebase-actions';
+import { addUnit, createProjectFromWizard } from '@/lib/firebase-actions';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Papa from 'papaparse';
+import { useRouter } from 'next/navigation';
 
 
 // Step 1 Component
@@ -53,7 +54,7 @@ const Step1_ProjectBasics = ({ formData, companies, isLoadingCompanies, handleCh
         <div className="space-y-2">
             <Label htmlFor="companyId">Managing Company</Label>
             {isLoadingCompanies ? <LoaderCircle className="animate-spin" /> :
-                <Select name="companyId" value={formData.companyId || ''} onValueChange={(value) => handleSelectChange('companyId', value)}>
+                <Select name="companyId" value={formData.companyId || ''} onValueChange={(value) => handleSelectChange('companyId', value)} required>
                     <SelectTrigger id="companyId">
                     <SelectValue placeholder="Select a company" />
                     </SelectTrigger>
@@ -109,7 +110,7 @@ const Step2_Leadership = ({ formData, users, isLoadingUsers, handleSelectChange 
                  <div className="space-y-2">
                     <Label htmlFor="directorId">Project Director</Label>
                     {isLoadingUsers ? <LoaderCircle className="animate-spin" /> :
-                        <Select name="directorId" value={formData.directorId || ''} onValueChange={(value) => handleSelectChange('directorId', value)}>
+                        <Select name="directorId" value={formData.directorId || ''} onValueChange={(value) => handleSelectChange('directorId', value)} required>
                             <SelectTrigger id="directorId">
                                 <SelectValue placeholder="Select a director" />
                             </SelectTrigger>
@@ -124,7 +125,7 @@ const Step2_Leadership = ({ formData, users, isLoadingUsers, handleSelectChange 
                  <div className="space-y-2">
                     <Label htmlFor="pmId">Project Manager (PM)</Label>
                     {isLoadingUsers ? <LoaderCircle className="animate-spin" /> :
-                        <Select name="pmId" value={formData.pmId || ''} onValueChange={(value) => handleSelectChange('pmId', value)}>
+                        <Select name="pmId" value={formData.pmId || ''} onValueChange={(value) => handleSelectChange('pmId', value)} required>
                             <SelectTrigger id="pmId">
                                 <SelectValue placeholder="Select a project manager" />
                             </SelectTrigger>
@@ -828,13 +829,121 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
 };
 
 
-// Placeholder components for other steps
-const Step9 = () => <div><CardTitle>Step 9: Review & Save</CardTitle></div>;
+const Step9_Review = ({ formData, companyMap, userMap }) => {
+    const { 
+        name, companyId, directorId, pmId,
+        cmIds = [], engineerIds = [], safetyOfficerIds = [], docControllerIds = [], logisticIds = [],
+        zones = [], activities = [], subActivities = []
+    } = formData;
+
+    const getTeamCount = (...teams) => teams.flat().filter(Boolean).length;
+    
+    return (
+        <div className="space-y-6">
+            <CardHeader className="p-0">
+                <CardTitle>Step 9: Review & Create Project</CardTitle>
+                <CardDescription>
+                    Review all the information below before creating the project.
+                </CardDescription>
+            </CardHeader>
+            <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full">
+                <AccordionItem value="item-1">
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-2">
+                           <Package className="w-5 h-5 text-primary" />
+                           <h3 className="font-semibold">Project Details</h3>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2">
+                        <div className="grid grid-cols-2 gap-4 text-sm p-4 border rounded-md">
+                            <div><Label>Project Name:</Label><p>{name}</p></div>
+                            <div><Label>Company:</Label><p>{companyMap.get(companyId)}</p></div>
+                            <div><Label>Director:</Label><p>{userMap.get(directorId)}</p></div>
+                            <div><Label>Project Manager:</Label><p>{userMap.get(pmId)}</p></div>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-2">
+                    <AccordionTrigger>
+                       <div className="flex items-center gap-2">
+                            <Users className="w-5 h-5 text-primary" />
+                            <h3 className="font-semibold">Team Members</h3>
+                            <Badge variant="secondary">{getTeamCount(directorId, pmId, cmIds, engineerIds, safetyOfficerIds, docControllerIds, logisticIds)}</Badge>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm p-4 border rounded-md">
+                            {[
+                                { title: 'CMs', ids: cmIds },
+                                { title: 'Engineers', ids: engineerIds },
+                                { title: 'Safety', ids: safetyOfficerIds },
+                                { title: 'Doc Controllers', ids: docControllerIds },
+                                { title: 'Logistics', ids: logisticIds },
+                            ].map(role => (
+                                <div key={role.title}>
+                                    <Label>{role.title}:</Label>
+                                    <ul className="list-disc list-inside">
+                                        {role.ids.map(id => <li key={id}>{userMap.get(id)}</li>)}
+                                        {role.ids.length === 0 && <li className="text-muted-foreground text-xs">None</li>}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+                 <AccordionItem value="item-3">
+                    <AccordionTrigger>
+                       <div className="flex items-center gap-2">
+                           <HardHat className="w-5 h-5 text-primary" />
+                           <h3 className="font-semibold">Work Breakdown</h3>
+                           <Badge variant="secondary">{activities.length} Activities / {subActivities.length} Sub-activities</Badge>
+                        </div>
+                    </AccordionTrigger>
+                     <AccordionContent className="pt-2">
+                        <div className="space-y-4 p-4 border rounded-md">
+                           <div>
+                                <Label>Zones:</Label>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {zones.map(z => <Badge key={z.name} variant="outline">{z.name}</Badge>)}
+                                    {zones.length === 0 && <p className="text-xs text-muted-foreground">No zones defined.</p>}
+                                </div>
+                            </div>
+                           <div>
+                                <Label>Activities & BoQ:</Label>
+                                {activities.map((act, index) => (
+                                    <div key={index} className="mt-1 p-2 border-l-2">
+                                        <p className="font-medium">{act.name} ({act.code})</p>
+                                        <ul className="list-disc list-inside pl-4 text-sm">
+                                            {subActivities.filter(sa => sa.activityId === index).map((sa, saIndex) => (
+                                                <li key={saIndex}>{sa.name} - <span className="text-muted-foreground">{sa.totalWork} {sa.unit}</span></li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ))}
+                                {activities.length === 0 && <p className="text-xs text-muted-foreground">No activities defined.</p>}
+                           </div>
+                        </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
+        </div>
+    );
+};
+
 
 
 export default function NewProjectWizard() {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    name: '',
+    companyId: '',
+    directorId: '',
+    pmId: '',
+    status: 'active',
+    address: '',
+    googleMapsUrl: '',
+    kmlUrl: '',
     cmIds: [],
     engineerIds: [],
     safetyOfficerIds: [],
@@ -846,7 +955,9 @@ export default function NewProjectWizard() {
     subActivities: [],
   });
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
 
   const companiesCollection = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollection);
@@ -858,21 +969,26 @@ export default function NewProjectWizard() {
   const { data: units, isLoading: isLoadingUnits } = useCollection<Unit>(unitsCollection);
 
   const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+  const companyMap = useMemo(() => new Map(companies?.map(c => [c.id, c.name])), [companies]);
 
   const steps = [
-    { name: 'Basics', component: (props) => <Step1_ProjectBasics {...props} /> },
-    { name: 'Leadership', component: (props) => <Step2_Leadership {...props} /> },
-    { name: 'Team', component: (props) => <Step3_Team {...props} /> },
-    { name: 'Support', component: (props) => <Step4_Support {...props} /> },
-    { name: 'Units', component: (props) => <Step5_DefineUnits {...props} /> },
-    { name: 'Zones', component: (props) => <Step6_DefineZones {...props} /> },
-    { name: 'Activities', component: (props) => <Step7_DefineActivities {...props} /> },
-    { name: 'Sub-activities', component: (props) => <Step8_SubActivities {...props} /> },
-    { name: 'Review', component: Step9 },
+    { name: 'Basics', component: (props) => <Step1_ProjectBasics {...props} />, isStepValid: () => !!formData.name && !!formData.companyId },
+    { name: 'Leadership', component: (props) => <Step2_Leadership {...props} />, isStepValid: () => !!formData.directorId && !!formData.pmId },
+    { name: 'Team', component: (props) => <Step3_Team {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Support', component: (props) => <Step4_Support {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Units', component: (props) => <Step5_DefineUnits {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Zones', component: (props) => <Step6_DefineZones {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Activities', component: (props) => <Step7_DefineActivities {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Sub-activities', component: (props) => <Step8_SubActivities {...props} />, isStepValid: () => true }, // Optional
+    { name: 'Review', component: (props) => <Step9_Review {...props} />, isStepValid: () => true },
   ];
 
   const handleNext = () => {
-    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+    if (steps[currentStep].isStepValid()) {
+      setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+    } else {
+      toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill in all required fields before proceeding.'});
+    }
   };
 
   const handleBack = () => {
@@ -986,6 +1102,28 @@ export default function NewProjectWizard() {
     }
   };
 
+  const handleSubmit = async () => {
+    if (!auth) {
+      toast({ variant: 'destructive', title: 'Not Authenticated', description: 'You must be logged in to create a project.' });
+      return;
+    }
+    if (!steps[0].isStepValid() || !steps[1].isStepValid()) {
+      toast({ variant: 'destructive', title: 'Incomplete Information', description: 'Please complete all required fields in Step 1 & 2.' });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+        await createProjectFromWizard(firestore, formData, { users, companies });
+        toast({ title: 'Project Created!', description: `${formData.name} has been successfully created.`});
+        router.push('/projects');
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Failed to Create Project', description: error.message });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
 
   const CurrentStepComponent = steps[currentStep].component;
 
@@ -998,6 +1136,7 @@ export default function NewProjectWizard() {
     units,
     isLoadingUnits,
     userMap,
+    companyMap,
     handleChange,
     handleSelectChange,
     handleMultiSelectChange,
@@ -1046,7 +1185,10 @@ export default function NewProjectWizard() {
                     Next <ArrowRight className="ml-2" />
                   </Button>
                 ) : (
-                  <Button>Review & Save</Button>
+                  <Button onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting && <LoaderCircle className="animate-spin mr-2" />}
+                    Create Project
+                  </Button>
                 )}
               </div>
             </CardFooter>
@@ -1056,5 +1198,3 @@ export default function NewProjectWizard() {
     </div>
   );
 }
-
-    
