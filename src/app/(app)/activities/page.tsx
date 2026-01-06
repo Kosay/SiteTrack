@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { LoaderCircle, PlusCircle, ListChecks, Trash2, Edit, MoreVertical, Briefcase } from 'lucide-react';
+import { useState, useMemo, useRef, ChangeEvent } from 'react';
+import { LoaderCircle, PlusCircle, ListChecks, Trash2, Edit, MoreVertical, Briefcase, Upload, Download } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -51,6 +51,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import Papa from 'papaparse';
 
 
 function ActivityForm({
@@ -130,6 +131,7 @@ export default function ActivitiesPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | undefined>(undefined);
+  const importInputRef = useRef<HTMLInputElement>(null);
   
   const companiesCollectionRef = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesCollectionRef);
@@ -172,6 +174,69 @@ export default function ActivitiesPage() {
       toast({ title: 'Activity Deleted', description: 'The activity has been removed.' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Delete Failed', description: error.message });
+    }
+  };
+
+  const handleExport = () => {
+    if (!activities || activities.length === 0) {
+      toast({ variant: 'destructive', title: 'No activities to export' });
+      return;
+    }
+
+    const dataToExport = activities.map(({ name, code, description }) => ({
+      name,
+      code,
+      description: description || '',
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'activities_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: 'Export successful' });
+  };
+
+  const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedProjectId) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const parsedData = results.data as { name: string; code: string; description?: string }[];
+        let successCount = 0;
+
+        for (const row of parsedData) {
+          if (row.name && row.code) {
+            try {
+              await addActivity(selectedProjectId, {
+                name: row.name,
+                code: row.code,
+                description: row.description || '',
+              });
+              successCount++;
+            } catch (error) {
+              console.error('Failed to import activity row:', row, error);
+            }
+          }
+        }
+        toast({
+          title: 'Import Complete',
+          description: `${successCount} activities were imported successfully.`,
+        });
+      },
+      error: (error) => {
+        toast({ variant: 'destructive', title: 'CSV Parsing Error', description: error.message });
+      },
+    });
+
+    if (event.target) {
+      event.target.value = '';
     }
   };
 
@@ -240,20 +305,35 @@ export default function ActivitiesPage() {
                 {activities?.length || 0} activities found for the selected project.
               </CardDescription>
             </div>
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                <Button onClick={() => handleOpenForm()}>
-                  <PlusCircle className="mr-2" /> New Activity
-                </Button>
-                 <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>{editingActivity ? 'Edit Activity' : 'Create New Activity'}</DialogTitle>
-                      <DialogDescription>
-                        {editingActivity ? 'Update the details for this activity.' : 'Add a new activity to this project.'}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <ActivityForm projectId={selectedProjectId} activity={editingActivity} onSuccess={handleCloseForm} />
-                 </DialogContent>
-            </Dialog>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".csv"
+                onChange={handleImport}
+              />
+              <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" /> Import
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" /> Export
+              </Button>
+              <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                  <Button onClick={() => handleOpenForm()}>
+                    <PlusCircle className="mr-2" /> New Activity
+                  </Button>
+                  <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>{editingActivity ? 'Edit Activity' : 'Create New Activity'}</DialogTitle>
+                        <DialogDescription>
+                          {editingActivity ? 'Update the details for this activity.' : 'Add a new activity to this project.'}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <ActivityForm projectId={selectedProjectId} activity={editingActivity} onSuccess={handleCloseForm} />
+                  </DialogContent>
+              </Dialog>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoadingActivities ? <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin" /></div> :
