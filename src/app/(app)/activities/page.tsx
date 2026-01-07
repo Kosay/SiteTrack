@@ -316,8 +316,8 @@ export default function ActivitiesPage() {
                     <Accordion type="multiple" className="w-full">
                         {activities.map(activity => (
                              <AccordionItem value={activity.id} key={activity.id}>
-                                <AccordionTrigger>
-                                    <div className="flex items-center justify-between w-full pr-4">
+                                <div className="flex items-center w-full">
+                                    <AccordionTrigger className="flex-grow">
                                         <div className="flex items-center gap-3 text-left">
                                             <ListChecks className="h-5 w-5 text-muted-foreground" />
                                             <div>
@@ -325,16 +325,16 @@ export default function ActivitiesPage() {
                                                 <p className="text-xs text-muted-foreground">{activity.code}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(activity)}>
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteActivity(activity)}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
-                                        </div>
+                                    </AccordionTrigger>
+                                    <div className="flex items-center gap-2 pr-4">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(activity)}>
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteActivity(activity)}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
                                     </div>
-                                </AccordionTrigger>
+                                </div>
                                 <AccordionContent className="bg-muted/30 p-4">
                                     <div className="flex justify-between items-center mb-2">
                                         <h4 className="font-semibold">Bill of Quantities (Sub-Activities)</h4>
