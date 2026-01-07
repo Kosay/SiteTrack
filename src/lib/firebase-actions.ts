@@ -327,6 +327,7 @@ export async function addSubActivity(projectId: string, activityId: string, data
     const subActivitiesRef = collection(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`);
     const newSubActivity = {
         ...data,
+        BoQ: data.BoQ,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     };
@@ -416,7 +417,15 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   // 3. Add Zones
   for (const zone of formData.zones || []) {
       const zoneRef = doc(collection(db, `projects/${projectRef.id}/zones`));
-      batch.set(zoneRef, { ...zone, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      const zoneData: any = { 
+        name: zone.name, 
+        createdAt: serverTimestamp(), 
+        updatedAt: serverTimestamp() 
+      };
+      if (zone.mapSvg) {
+        zoneData.mapSvg = zone.mapSvg;
+      }
+      batch.set(zoneRef, zoneData);
   }
 
   // 4. Add Activities and Sub-activities
@@ -437,6 +446,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     for (const subActivity of subActivitiesForThis) {
       const subActivityRef = doc(collection(db, `projects/${projectRef.id}/activities/${activityRef.id}/subactivities`));
       batch.set(subActivityRef, {
+        BoQ: subActivity.BoQ,
         name: subActivity.name,
         description: subActivity.description,
         unit: subActivity.unit,
