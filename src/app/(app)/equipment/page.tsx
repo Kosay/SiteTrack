@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useState } from 'react';
-import { LoaderCircle, HardHat, PlusCircle, CalendarDays, User, Tag, Building, Wrench } from 'lucide-react';
+import { useState, useMemo, ChangeEvent, useRef } from 'react';
+import { LoaderCircle, HardHat, PlusCircle, CalendarDays, User, Building, Wrench, Upload, Download } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -12,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Equipment, EquipmentType } from '@/lib/types';
+import type { Equipment, EquipmentType, Project, User as SiteUser } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -25,7 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { addEquipment } from '@/lib/firebase-actions';
+import { addEquipment, batchAddEquipment } from '@/lib/firebase-actions';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -38,8 +39,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
+import Papa from 'papaparse';
 
-function EquipmentForm({ equipmentTypes, onSuccess }: { equipmentTypes: EquipmentType[], onSuccess: () => void }) {
+
+function EquipmentForm({ equipmentTypes, projects, users, onSuccess }: { equipmentTypes: EquipmentType[], projects: Project[], users: SiteUser[], onSuccess: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [ownershipDate, setOwnershipDate] = useState<Date | undefined>();
@@ -51,11 +54,11 @@ function EquipmentForm({ equipmentTypes, onSuccess }: { equipmentTypes: Equipmen
     const formData = new FormData(event.currentTarget);
     const plateNumber = formData.get('plateNumber') as string;
     const typeId = formData.get('typeId') as string;
-    const status = formData.get('status') as Equipment['status'];
-    const assignedTo = formData.get('assignedTo') as string;
+    const situation = formData.get('situation') as Equipment['situation'];
+    const assigneeId = formData.get('assigneeId') as string;
     const projectId = formData.get('projectId') as string;
 
-    if (!plateNumber || !typeId || !status) {
+    if (!plateNumber || !typeId || !situation) {
       toast({
         variant: 'destructive',
         title: 'Required fields are missing.',
@@ -67,12 +70,12 @@ function EquipmentForm({ equipmentTypes, onSuccess }: { equipmentTypes: Equipmen
     try {
       await addEquipment({
         plateNumber,
-        typeId,
-        status,
-        assignedTo,
+        equipmentNameId: typeId,
+        situation,
+        assigneeId,
         projectId,
-        ownershipCertificateDate: ownershipDate ? ownershipDate.toISOString() : '',
-        thirdPartyCertificateDate: thirdPartyDate ? thirdPartyDate.toISOString() : '',
+        ownershipCertificateDate: ownershipDate ? ownershipDate.toISOString() : undefined,
+        thirdPartyCertificateDate: thirdPartyDate ? thirdPartyDate.toISOString() : undefined,
       });
       toast({
         title: 'Equipment Added',
@@ -113,25 +116,39 @@ function EquipmentForm({ equipmentTypes, onSuccess }: { equipmentTypes: Equipmen
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
-          <Select name="status" defaultValue="Working" required>
-            <SelectTrigger id="status">
-              <SelectValue placeholder="Select status" />
+          <Label htmlFor="situation">Situation</Label>
+          <Select name="situation" defaultValue="Working at site" required>
+            <SelectTrigger id="situation">
+              <SelectValue placeholder="Select situation" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Working">Working</SelectItem>
-              <SelectItem value="Broken">Broken</SelectItem>
-              <SelectItem value="In Garage">In Garage</SelectItem>
+              <SelectItem value="Working at site">Working at site</SelectItem>
+              <SelectItem value="Broke down at site">Broke down at site</SelectItem>
+              <SelectItem value="In garage">In garage</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="assignedTo">Assigned To (User ID)</Label>
-          <Input id="assignedTo" name="assignedTo" placeholder="Enter User ID" />
+          <Label htmlFor="assigneeId">Assigned To</Label>
+          <Select name="assigneeId">
+            <SelectTrigger id="assigneeId">
+                <SelectValue placeholder="Select a user" />
+            </SelectTrigger>
+            <SelectContent>
+                {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="projectId">Project ID</Label>
-          <Input id="projectId" name="projectId" placeholder="Enter Project ID" />
+          <Label htmlFor="projectId">Project</Label>
+          <Select name="projectId">
+            <SelectTrigger id="projectId">
+                <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent>
+                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>Ownership Certificate Date</Label>
@@ -191,40 +208,137 @@ function EquipmentForm({ equipmentTypes, onSuccess }: { equipmentTypes: Equipmen
 
 export default function EquipmentPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
-  const equipmentCollectionRef = useMemoFirebase(() => {
-    return collection(firestore, 'equipment');
-  }, [firestore]);
-
+  const equipmentCollectionRef = useMemoFirebase(() => collection(firestore, 'equipment'), [firestore]);
   const { data: equipment, isLoading } = useCollection<Equipment>(equipmentCollectionRef);
 
-  const equipmentTypesCollectionRef = useMemoFirebase(() => {
-    return collection(firestore, 'equipment_names');
-  }, [firestore]);
-
+  const equipmentTypesCollectionRef = useMemoFirebase(() => collection(firestore, 'equipment_names'), [firestore]);
   const { data: equipmentTypes, isLoading: isLoadingTypes } = useCollection<EquipmentType>(equipmentTypesCollectionRef);
 
-  const equipmentTypeMap = useMemoFirebase(() => {
-    if (!equipmentTypes) return new Map();
-    return new Map(equipmentTypes.map((t) => [t.id, t.name]));
-  }, [equipmentTypes]);
+  const projectsCollectionRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsCollectionRef);
 
+  const usersCollectionRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<SiteUser>(usersCollectionRef);
 
-  const getStatusVariant = (status: Equipment['status']) => {
+  const equipmentTypeMap = useMemo(() => new Map(equipmentTypes?.map((t) => [t.id, t.name])), [equipmentTypes]);
+  const projectMap = useMemo(() => new Map(projects?.map((p) => [p.id, p.name])), [projects]);
+  const userMap = useMemo(() => new Map(users?.map((u) => [u.id, u.name])), [users]);
+  
+  const equipmentTypeNameMap = useMemo(() => new Map(equipmentTypes?.map((t) => [t.name, t.id])), [equipmentTypes]);
+  const projectNameMap = useMemo(() => new Map(projects?.map((p) => [p.name, p.id])), [projects]);
+  const userNameMap = useMemo(() => new Map(users?.map((u) => [u.name, u.id])), [users]);
+
+  const getStatusVariant = (status: Equipment['situation']) => {
     switch (status) {
-      case 'Working':
+      case 'Working at site':
         return 'default';
-      case 'Broken':
+      case 'Broke down at site':
         return 'destructive';
-      case 'In Garage':
+      case 'In garage':
         return 'secondary';
       default:
         return 'outline';
     }
   };
   
-  const isLoadingData = isLoading || isLoadingTypes;
+  const handleExport = () => {
+    if (!equipment || equipment.length === 0) {
+      toast({ variant: 'destructive', title: 'No equipment to export' });
+      return;
+    }
+
+    const dataToExport = equipment.map(item => ({
+      'EquipmentName': equipmentTypeMap.get(item.equipmentNameId) || 'N/A',
+      'PlateNumber': item.plateNumber,
+      'Project': projectMap.get(item.projectId) || 'N/A',
+      'Assignee': userMap.get(item.assigneeId) || 'N/A',
+      'Situation': item.situation,
+      'Remarks': item.remarks || '',
+      'OwnershipCertificateDate': item.ownershipCertificateDate ? format(new Date(item.ownershipCertificateDate), 'yyyy-MM-dd') : '',
+      'ThirdPartyCertificateDate': item.thirdPartyCertificateDate ? format(new Date(item.thirdPartyCertificateDate), 'yyyy-MM-dd') : '',
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'equipment_export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Export successful", description: `${equipment.length} items exported.` });
+  };
+
+  const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse<any>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const parsedData = results.data;
+        const equipmentToBatchAdd: Omit<Equipment, 'id'>[] = [];
+        let errorCount = 0;
+
+        for (const row of parsedData) {
+          const { EquipmentName, PlateNumber, Project, Assignee, Situation, Remarks, OwnershipCertificateDate, ThirdPartyCertificateDate } = row;
+          
+          const equipmentNameId = equipmentTypeNameMap.get(EquipmentName);
+          const projectId = projectNameMap.get(Project);
+          const assigneeId = userNameMap.get(Assignee);
+
+          if (!PlateNumber || !equipmentNameId || !Situation) {
+            console.warn('Skipping row due to missing required fields:', row);
+            errorCount++;
+            continue;
+          }
+
+          equipmentToBatchAdd.push({
+            plateNumber: PlateNumber,
+            equipmentNameId: equipmentNameId,
+            projectId: projectId || '',
+            assigneeId: assigneeId || '',
+            situation: Situation,
+            remarks: Remarks || '',
+            ownershipCertificateDate: OwnershipCertificateDate || undefined,
+            thirdPartyCertificateDate: ThirdPartyCertificateDate || undefined,
+            ownershipType: 'Company', // Defaulting, adjust if needed
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+        
+        if (equipmentToBatchAdd.length > 0) {
+            try {
+                await batchAddEquipment(equipmentToBatchAdd);
+                toast({
+                  title: "Import Complete",
+                  description: `${equipmentToBatchAdd.length} items imported successfully.` + (errorCount > 0 ? ` ${errorCount} rows failed.` : '')
+                });
+            } catch (e: any) {
+                toast({ variant: 'destructive', title: 'Import Failed', description: e.message });
+            }
+        } else {
+             toast({ variant: 'destructive', title: 'Import Failed', description: `No valid rows to import. ${errorCount} rows had errors.` });
+        }
+      },
+      error: (error) => {
+        toast({ variant: 'destructive', title: 'CSV Parsing Error', description: error.message });
+      }
+    });
+
+    if (event.target) {
+        event.target.value = '';
+    }
+  };
+
+
+  const isLoadingData = isLoading || isLoadingTypes || isLoadingProjects || isLoadingUsers;
 
   return (
     <div className="flex flex-col gap-8">
@@ -235,7 +349,16 @@ export default function EquipmentPage() {
             Manage all company and rented equipment.
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+            <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".csv"
+                onChange={handleImport}
+            />
+            <Button variant="outline" onClick={() => importInputRef.current?.click()}><Upload className="mr-2"/> Import</Button>
+            <Button variant="outline" onClick={handleExport}><Download className="mr-2"/> Export</Button>
            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
              <Button onClick={() => setIsFormOpen(true)}>
               <PlusCircle className="mr-2" />
@@ -248,8 +371,12 @@ export default function EquipmentPage() {
                   Fill out the form to add a new piece of equipment to the inventory.
                 </DialogDescription>
               </DialogHeader>
-              {isLoadingTypes ? <LoaderCircle className="animate-spin" /> :
-                <EquipmentForm equipmentTypes={equipmentTypes || []} onSuccess={() => setIsFormOpen(false)} />
+              {isLoadingData ? <LoaderCircle className="animate-spin" /> :
+                <EquipmentForm 
+                    equipmentTypes={equipmentTypes || []} 
+                    projects={projects || []}
+                    users={users || []}
+                    onSuccess={() => setIsFormOpen(false)} />
               }
             </DialogContent>
           </Dialog>
@@ -276,36 +403,36 @@ export default function EquipmentPage() {
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <CardTitle className="line-clamp-1">{item.plateNumber}</CardTitle>
-                         <Badge variant={getStatusVariant(item.status)}>{item.status}</Badge>
+                         <Badge variant={getStatusVariant(item.situation)}>{item.situation}</Badge>
                       </div>
                        <CardDescription className="flex items-center gap-2 pt-1">
                         <Wrench className="w-4 h-4" />
-                        {equipmentTypeMap.get(item.typeId) || 'Unknown Type'}
+                        {equipmentTypeMap.get(item.equipmentNameId) || 'Unknown Type'}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm mt-auto pt-4 border-t">
-                      {item.assignedTo && (
+                      {item.assigneeId && (
                         <div className="flex items-center gap-3">
                             <User className="text-muted-foreground" />
-                            <span className="text-muted-foreground">Assigned: {item.assignedTo}</span>
+                            <span className="text-muted-foreground">Assigned: {userMap.get(item.assigneeId)}</span>
                         </div>
                       )}
                        {item.projectId && (
                         <div className="flex items-center gap-3">
                             <Building className="text-muted-foreground" />
-                            <span className="text-muted-foreground">Project: {item.projectId}</span>
+                            <span className="text-muted-foreground">Project: {projectMap.get(item.projectId)}</span>
                         </div>
                       )}
                       {item.ownershipCertificateDate && (
                          <div className="flex items-center gap-3">
                             <CalendarDays className="text-muted-foreground" />
-                            <span className="text-muted-foreground">Ownership Cert: {new Date(item.ownershipCertificateDate).toLocaleDateString()}</span>
+                            <span className="text-muted-foreground">Ownership Cert: {format(new Date(item.ownershipCertificateDate), 'PPP')}</span>
                         </div>
                       )}
                        {item.thirdPartyCertificateDate && (
                          <div className="flex items-center gap-3">
                             <CalendarDays className="text-muted-foreground" />
-                            <span className="text-muted-foreground">3rd Party Cert: {new Date(item.thirdPartyCertificateDate).toLocaleDateString()}</span>
+                            <span className="text-muted-foreground">3rd Party Cert: {format(new Date(item.thirdPartyCertificateDate), 'PPP')}</span>
                         </div>
                       )}
                     </CardContent>
@@ -328,3 +455,4 @@ export default function EquipmentPage() {
       )}
     </div>
   );
+}

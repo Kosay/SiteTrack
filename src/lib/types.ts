@@ -49,13 +49,13 @@ export interface Project {
 
 export interface Equipment {
     id: string;
-    companyId: string;
+    companyId?: string; // Should be optional if it can be derived from project
     projectId: string;
     projectName?: string;
     equipmentNameId: string;
     equipmentName?: string;
     plateNumber: string;
-    pmId: string;
+    pmId?: string; // Should be optional if it can be derived from project
     pmName?: string;
     assigneeId: string;
     assigneeName?: string;
@@ -72,11 +72,8 @@ export interface Equipment {
     rentalMonthlyRent?: number;
     rentalAnnualRent?: number;
     rentalStartDate?: any; // Firestore Timestamp
-    status?: "Working" | "Broken" | "In Garage";
-    assignedTo?: string;
     ownershipCertificateDate?: string;
     thirdPartyCertificateDate?: string;
-    typeId?: string;
 }
 
 export interface EquipmentName {
@@ -175,6 +172,7 @@ export interface Activity {
 export interface SubActivity {
     id: string;
     name: string;
+    BoQ: string;
     description: string;
     unit: string;
     totalWork: number;

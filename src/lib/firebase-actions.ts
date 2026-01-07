@@ -177,6 +177,24 @@ export async function addEquipment(data: AddEquipmentData): Promise<void> {
   addDocumentNonBlocking(equipmentCollectionRef, newEquipment);
 }
 
+/**
+ * Adds multiple pieces of equipment in a single batch.
+ * @param equipmentList - An array of equipment data to add.
+ */
+export async function batchAddEquipment(equipmentList: Omit<Equipment, 'id'>[]): Promise<void> {
+  const db = getDb();
+  const batch = writeBatch(db);
+  const equipmentCollectionRef = collection(db, 'equipment');
+
+  equipmentList.forEach(equipmentData => {
+    const docRef = doc(equipmentCollectionRef); // Create a new doc with a random ID
+    batch.set(docRef, equipmentData);
+  });
+
+  await batch.commit();
+}
+
+
 // Add a new function for creating projects
 type AddProjectData = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'totalWork' | 'doneWork' | 'approvedWork'>;
 
@@ -422,6 +440,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
         createdAt: serverTimestamp(), 
         updatedAt: serverTimestamp() 
       };
+      // Only add mapSvg if it has a value
       if (zone.mapSvg) {
         zoneData.mapSvg = zone.mapSvg;
       }
