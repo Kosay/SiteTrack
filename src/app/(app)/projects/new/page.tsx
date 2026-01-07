@@ -666,7 +666,7 @@ const Step7_DefineActivities = ({ formData, handleMultiSelectChange }) => {
 
 const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleImport, handleExport }) => {
     const { toast } = useToast();
-    const [currentSubActivity, setCurrentSubActivity] = useState({ name: '', description: '', unit: '', totalWork: 0 });
+    const [currentSubActivity, setCurrentSubActivity] = useState({ name: '', description: '', unit: '', totalWork: 0, BoQ: '' });
     const [zoneQuantities, setZoneQuantities] = useState({});
     const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -691,8 +691,8 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
     };
 
     const handleAddSubActivity = (activityIndex) => {
-        if (!currentSubActivity.name || !currentSubActivity.unit || !currentSubActivity.totalWork) {
-            toast({ variant: 'destructive', title: 'Missing Fields', description: 'Sub-activity name, unit, and total work are required.' });
+        if (!currentSubActivity.name || !currentSubActivity.unit || !currentSubActivity.totalWork || !currentSubActivity.BoQ) {
+            toast({ variant: 'destructive', title: 'Missing Fields', description: 'BoQ, Name, Unit, and Total Work are required.' });
             return;
         }
 
@@ -706,7 +706,7 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
         handleMultiSelectChange('subActivities', newSubActivities);
 
         // Reset forms
-        setCurrentSubActivity({ name: '', description: '', unit: '', totalWork: 0 });
+        setCurrentSubActivity({ name: '', description: '', unit: '', totalWork: 0, BoQ: '' });
         setZoneQuantities({});
     };
 
@@ -762,8 +762,11 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
                         <AccordionContent>
                             <div className="space-y-6 p-4 border rounded-md">
                                 <h4 className="font-semibold text-md">Add New Sub-activity</h4>
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                     <Input name="BoQ" placeholder="BoQ Code (e.g., FW-01.01)" value={currentSubActivity.BoQ} onChange={handleSubActivityChange} />
                                     <Input name="name" placeholder="Sub-activity Name" value={currentSubActivity.name} onChange={handleSubActivityChange} />
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <Select name="unit" onValueChange={handleUnitChange} value={currentSubActivity.unit}>
                                         <SelectTrigger><SelectValue placeholder="Select Unit" /></SelectTrigger>
                                         <SelectContent>
@@ -803,7 +806,7 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
                                         <div key={saIndex} className="p-3 border rounded-lg bg-muted/20">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <p className="font-medium flex items-center gap-2"><Boxes className="w-4 h-4 text-primary"/>{sa.name}</p>
+                                                    <p className="font-medium flex items-center gap-2"><Boxes className="w-4 h-4 text-primary"/>{sa.name} <span className="text-xs text-muted-foreground">({sa.BoQ})</span></p>
                                                     <p className="text-sm text-muted-foreground">{sa.description}</p>
                                                 </div>
                                                 <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{sa.totalWork} {sa.unit}</p>
@@ -916,7 +919,7 @@ const Step9_Review = ({ formData, companyMap, userMap }) => {
                                         <p className="font-medium">{act.name} ({act.code})</p>
                                         <ul className="list-disc list-inside pl-4 text-sm">
                                             {subActivities.filter(sa => sa.activityId === index).map((sa, saIndex) => (
-                                                <li key={saIndex}>{sa.name} - <span className="text-muted-foreground">{sa.totalWork} {sa.unit}</span></li>
+                                                <li key={saIndex}>{sa.name} ({sa.BoQ}) - <span className="text-muted-foreground">{sa.totalWork} {sa.unit}</span></li>
                                             ))}
                                         </ul>
                                     </div>
@@ -1010,67 +1013,93 @@ export default function NewProjectWizard() {
   }
 
   const handleExport = () => {
-        const { activities, zones, subActivities } = formData;
-        if (!subActivities || subActivities.length === 0) {
-            toast({ variant: "destructive", title: "No data to export" });
-            return;
-        }
+    const { activities, zones, subActivities } = formData;
+    if (!activities || activities.length === 0) {
+        toast({ variant: "destructive", title: "No data to export", description: "Please add at least one activity." });
+        return;
+    }
 
-        const activityMap = new Map(activities.map((act, index) => [index, act]));
-        const zoneNames = zones.map(zone => zone.name);
+    const activityMap = new Map(activities.map((act, index) => [index, act]));
+    const zoneNames = zones.map(zone => zone.name);
 
-        const dataToExport = subActivities.map(sa => {
-            const activity = activityMap.get(sa.activityId);
-            const row: Record<string, any> = {
-                'ActivityCode': activity?.code || '',
-                'ActivityName': activity?.name || '',
-                'SubActivityName': sa.name,
-                'Description': sa.description,
-                'Unit': sa.unit,
-                'TotalWork': sa.totalWork,
-            };
-            zoneNames.forEach(zoneName => {
-                row[zoneName] = sa.zoneQuantities[zoneName] || 0;
-            });
-            return row;
+    const dataToExport = subActivities.map(sa => {
+        const activity = activityMap.get(sa.activityId);
+        const row: Record<string, any> = {
+            'ActivityCode': activity?.code || '',
+            'ActivityName': activity?.name || '',
+            'BoQ': sa.BoQ,
+            'SubActivityName': sa.name,
+            'Description': sa.description,
+            'Unit': sa.unit,
+            'TotalWork': sa.totalWork,
+        };
+        zoneNames.forEach(zoneName => {
+            row[zoneName] = sa.zoneQuantities[zoneName] || 0;
         });
-
+        return row;
+    });
+    
+    if (dataToExport.length === 0) {
+        // Create a template with headers if there are no sub-activities
+        const headers = ['ActivityCode', 'ActivityName', 'BoQ', 'SubActivityName', 'Description', 'Unit', 'TotalWork', ...zoneNames];
+        const templateRow = activities.map(act => ({'ActivityCode': act.code, 'ActivityName': act.name}));
+        const csv = Papa.unparse(templateRow.length > 0 ? templateRow : [headers]);
+        triggerDownload(csv, 'boq_template.csv');
+        toast({ title: "Template Exported", description: "A template CSV has been downloaded." });
+    } else {
         const csv = Papa.unparse(dataToExport);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', 'boq_export.csv');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast({ title: "Export successful" });
+        triggerDownload(csv, 'boq_export.csv');
+        toast({ title: "Export Successful", description: `${dataToExport.length} rows exported.` });
+    }
   };
+
+  const triggerDownload = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
+    Papa.parse<Record<string, string>>(file, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-            const parsedData = results.data as Record<string, string>[];
-            const { activities, zones } = formData;
-            const activityCodeMap = new Map(activities.map((act, index) => [act.code, index]));
-            const zoneNames = new Set(zones.map(z => z.name));
+            const parsedData = results.data;
+            let newActivities = [...formData.activities];
+            let newSubActivities = [...formData.subActivities];
+            const zoneNames = new Set(formData.zones.map(z => z.name));
 
-            const newSubActivities: any[] = [];
             let errorOccurred = false;
 
             for (const row of parsedData) {
-                const { ActivityCode, SubActivityName, Description, Unit, TotalWork, ...zoneQtys } = row;
+                const { ActivityCode, ActivityName, BoQ, SubActivityName, Description, Unit, TotalWork, ...zoneQtys } = row;
 
-                if (!activityCodeMap.has(ActivityCode)) {
-                    toast({ variant: "destructive", title: "Import Error", description: `Activity code "${ActivityCode}" not found in project.` });
-                    errorOccurred = true;
-                    break;
+                if (!ActivityCode || !BoQ || !SubActivityName || !Unit || !TotalWork) {
+                    toast({ variant: "destructive", title: "Import Error", description: `Skipping a row due to missing required fields (ActivityCode, BoQ, SubActivityName, Unit, TotalWork).` });
+                    continue;
                 }
 
+                let activityIndex = newActivities.findIndex(a => a.code === ActivityCode);
+
+                // If activity doesn't exist, create it
+                if (activityIndex === -1) {
+                    if (!ActivityName) {
+                        toast({ variant: "destructive", title: "Import Error", description: `ActivityName is required for new ActivityCode "${ActivityCode}".`});
+                        errorOccurred = true;
+                        break;
+                    }
+                    const newActivity = { name: ActivityName, code: ActivityCode, description: '' };
+                    newActivities.push(newActivity);
+                    activityIndex = newActivities.length - 1;
+                }
+                
                 const zoneQuantities = {};
                 for (const zoneName in zoneQtys) {
                     if (zoneNames.has(zoneName)) {
@@ -1079,18 +1108,23 @@ export default function NewProjectWizard() {
                 }
                 
                 newSubActivities.push({
+                    BoQ,
                     name: SubActivityName,
                     description: Description || '',
                     unit: Unit,
                     totalWork: Number(TotalWork) || 0,
-                    activityId: activityCodeMap.get(ActivityCode),
+                    activityId: activityIndex,
                     zoneQuantities,
                 });
             }
 
             if (!errorOccurred) {
-                handleMultiSelectChange('subActivities', [...formData.subActivities, ...newSubActivities]);
-                toast({ title: "Import Successful", description: `${newSubActivities.length} sub-activities were imported.` });
+                setFormData(prev => ({
+                    ...prev,
+                    activities: newActivities,
+                    subActivities: newSubActivities
+                }));
+                toast({ title: "Import Successful", description: `${parsedData.length} rows were processed.` });
             }
         },
         error: (error) => {
@@ -1176,7 +1210,7 @@ export default function NewProjectWizard() {
               ) : <div />}
               
               <div className="flex items-center gap-2">
-                {currentStep === 3 && ( // Only show Skip button on Step 4 (index 3)
+                {currentStep >= 3 && currentStep < 7 && (
                    <Button variant="ghost" onClick={handleNext}>
                     Skip
                    </Button>
