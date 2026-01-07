@@ -120,7 +120,7 @@ function SubActivityForm({ projectId, activityId, units, onSuccess }: { projectI
         }
 
         try {
-            await addSubActivity(projectId, activityId, { name, description, unit, totalWork });
+            await addSubActivity(projectId, activityId, { name, description, unit, totalWork, BoQ: 'N/A' });
             toast({ title: 'Sub-Activity Added', description: `BoQ item '${name}' has been added.` });
             onSuccess();
         } catch (error: any) {
@@ -325,11 +325,11 @@ export default function ActivitiesPage() {
                                                 <p className="text-xs text-muted-foreground">{activity.code}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); openEditDialog(activity);}}>
+                                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(activity)}>
                                                 <Edit className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleDeleteActivity(activity);}}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteActivity(activity)}>
                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
                                         </div>
