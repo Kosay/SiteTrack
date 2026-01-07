@@ -32,11 +32,56 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, PlusCircle, Trash2, Edit, Boxes, ListChecks } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Trash2, Edit, Boxes, ListChecks, FileText } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Company, Project, Activity, SubActivity, Unit } from '@/lib/types';
 import { addActivity, updateActivity, deleteActivity, addSubActivity } from '@/lib/firebase-actions';
+import { Badge } from '@/components/ui/badge';
+
+// SubActivityList Component
+function SubActivityList({ projectId, activityId }: { projectId: string, activityId: string }) {
+    const firestore = useFirestore();
+    const subActivitiesQuery = useMemoFirebase(() => {
+        if (!projectId || !activityId) return null;
+        return collection(firestore, `projects/${projectId}/activities/${activityId}/subactivities`);
+    }, [firestore, projectId, activityId]);
+
+    const { data: subActivities, isLoading } = useCollection<SubActivity>(subActivitiesQuery);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-center p-4"><LoaderCircle className="w-6 h-6 animate-spin text-primary" /></div>;
+    }
+
+    return (
+        <div>
+            {subActivities && subActivities.length > 0 ? (
+                <div className="space-y-3">
+                    {subActivities.map(sa => (
+                        <div key={sa.id} className="flex items-start justify-between rounded-md border p-3 bg-white dark:bg-zinc-900">
+                           <div className="flex items-start gap-3">
+                             <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                             <div>
+                                <p className="font-semibold text-sm">{sa.name} {sa.BoQ && <span className="text-xs text-muted-foreground">({sa.BoQ})</span>}</p>
+                                {sa.description && <p className="text-xs text-muted-foreground">{sa.description}</p>}
+                             </div>
+                           </div>
+                           <div className="text-right flex-shrink-0 ml-4">
+                                <p className="font-semibold text-sm">{sa.totalWork}</p>
+                                <p className="text-xs text-muted-foreground">{sa.unit}</p>
+                           </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-sm text-center text-muted-foreground py-4 border-2 border-dashed rounded-md">
+                    No sub-activities (BoQ items) have been added yet.
+                </div>
+            )}
+        </div>
+    );
+}
+
 
 // Add Activity Form
 function ActivityForm({ projectId, onSuccess, activityToEdit }: { projectId: string, onSuccess: () => void, activityToEdit?: Activity }) {
@@ -108,19 +153,20 @@ function SubActivityForm({ projectId, activityId, units, onSuccess }: { projectI
         event.preventDefault();
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
+        const boq = formData.get('BoQ') as string;
         const name = formData.get('name') as string;
         const description = formData.get('description') as string;
         const unit = formData.get('unit') as string;
         const totalWork = parseFloat(formData.get('totalWork') as string);
         
-        if (!name || !unit || isNaN(totalWork)) {
-            toast({ variant: 'destructive', title: 'Name, Unit, and Total Work are required.' });
+        if (!name || !unit || isNaN(totalWork) || !boq) {
+            toast({ variant: 'destructive', title: 'BoQ, Name, Unit, and Total Work are required.' });
             setIsSubmitting(false);
             return;
         }
 
         try {
-            await addSubActivity(projectId, activityId, { name, description, unit, totalWork, BoQ: 'N/A' });
+            await addSubActivity(projectId, activityId, { name, description, unit, totalWork, BoQ: boq });
             toast({ title: 'Sub-Activity Added', description: `BoQ item '${name}' has been added.` });
             onSuccess();
         } catch (error: any) {
@@ -132,6 +178,10 @@ function SubActivityForm({ projectId, activityId, units, onSuccess }: { projectI
 
     return (
          <form onSubmit={handleSubmit} className="space-y-4">
+             <div className="space-y-2">
+                <Label htmlFor="BoQ">BoQ Code</Label>
+                <Input id="BoQ" name="BoQ" placeholder="e.g., FW-01.01" required />
+            </div>
             <div className="space-y-2">
                 <Label htmlFor="name">Sub-Activity Name</Label>
                 <Input id="name" name="name" placeholder="e.g., 'Concrete Pouring'" required />
@@ -193,12 +243,6 @@ export default function ActivitiesPage() {
     return collection(firestore, `projects/${selectedProject}/activities`);
   }, [firestore, selectedProject]);
   const { data: activities, isLoading: isLoadingActivities } = useCollection<Activity>(activitiesQuery);
-
-  const subActivitiesQuery = useMemoFirebase(() => {
-    if(!selectedProject || !activities) return null;
-    // We can't do a group query here easily without knowing activity IDs, so we'll fetch them individually later or restructure
-    return null; 
-  }, [firestore, selectedProject, activities])
 
   const unitsCollection = useMemoFirebase(() => collection(firestore, 'units'), [firestore]);
   const { data: units, isLoading: isLoadingUnits } = useCollection<Unit>(unitsCollection);
@@ -317,7 +361,7 @@ export default function ActivitiesPage() {
                         {activities.map(activity => (
                              <AccordionItem value={activity.id} key={activity.id}>
                                 <div className="flex items-center w-full">
-                                    <AccordionTrigger className="flex-grow">
+                                    <AccordionTrigger>
                                         <div className="flex items-center gap-3 text-left">
                                             <ListChecks className="h-5 w-5 text-muted-foreground" />
                                             <div>
@@ -326,7 +370,7 @@ export default function ActivitiesPage() {
                                             </div>
                                         </div>
                                     </AccordionTrigger>
-                                    <div className="flex items-center gap-2 pr-4">
+                                    <div className="flex items-center gap-0.5 pr-2">
                                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(activity)}>
                                             <Edit className="h-4 w-4" />
                                         </Button>
@@ -336,8 +380,11 @@ export default function ActivitiesPage() {
                                     </div>
                                 </div>
                                 <AccordionContent className="bg-muted/30 p-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-semibold">Bill of Quantities (Sub-Activities)</h4>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div>
+                                            <h4 className="font-semibold">Bill of Quantities (Sub-Activities)</h4>
+                                            <p className="text-sm text-muted-foreground">{activity.description || 'No description provided for this activity.'}</p>
+                                        </div>
                                          <Dialog open={isBoQFormOpen && currentActivityForBoQ === activity.id} onOpenChange={(isOpen) => { if(!isOpen) setCurrentActivityForBoQ(''); setIsBoQFormOpen(isOpen);}}>
                                             <DialogTrigger asChild>
                                                 <Button variant="outline" size="sm" onClick={() => openBoQDialog(activity.id)}><PlusCircle className="mr-2 h-4 w-4" />Add BoQ Item</Button>
@@ -358,10 +405,9 @@ export default function ActivitiesPage() {
                                             </DialogContent>
                                         </Dialog>
                                     </div>
-                                    <p className="text-sm text-muted-foreground mb-4">{activity.description || 'No description provided for this activity.'}</p>
-                                    <div className="text-sm text-center text-muted-foreground py-4 border-2 border-dashed rounded-md">
-                                        Sub-activity list coming soon...
-                                    </div>
+                                    
+                                    <SubActivityList projectId={selectedProject} activityId={activity.id} />
+
                                 </AccordionContent>
                              </AccordionItem>
                         ))}
