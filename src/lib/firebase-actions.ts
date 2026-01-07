@@ -429,36 +429,38 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   }
 
   // 4. Add Activities and Sub-activities
-  const activityPromises = (formData.activities || []).map(async (activity, index) => {
+  const activityRefs: Map<string, any> = new Map();
+  for (const activity of formData.activities) {
     const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
+    activityRefs.set(activity.code, activityRef);
     batch.set(activityRef, {
-      name: activity.name,
-      code: activity.code,
-      description: activity.description,
-      totalWork: 0, // This will be aggregated from sub-activities
-      doneWork: 0,
-      approvedWork: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    const subActivitiesForThis = (formData.subActivities || []).filter(sa => sa.activityId === index);
-    for (const subActivity of subActivitiesForThis) {
-      const subActivityRef = doc(collection(db, `projects/${projectRef.id}/activities/${activityRef.id}/subactivities`));
-      batch.set(subActivityRef, {
-        BoQ: subActivity.BoQ,
-        name: subActivity.name,
-        description: subActivity.description,
-        unit: subActivity.unit,
-        totalWork: subActivity.totalWork,
+        name: activity.name,
+        code: activity.code,
+        description: activity.description,
+        totalWork: 0, // This will be aggregated from sub-activities
+        doneWork: 0,
+        approvedWork: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
-      // Here you could also add zone quantities if needed, similar to other batch writes
-    }
-  });
+    });
+  }
 
-  await Promise.all(activityPromises);
+  for (const subActivity of formData.subActivities) {
+    const parentActivityRef = activityRefs.get(subActivity.activityCode);
+    if(parentActivityRef) {
+        const subActivityRef = doc(collection(db, parentActivityRef.path, 'subactivities'));
+        batch.set(subActivityRef, {
+            BoQ: subActivity.BoQ,
+            name: subActivity.name,
+            description: subActivity.description,
+            unit: subActivity.unit,
+            totalWork: subActivity.totalWork,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        // Here you could also add zone quantities if needed, similar to other batch writes
+    }
+  }
     
   // Commit the batch
   await batch.commit();

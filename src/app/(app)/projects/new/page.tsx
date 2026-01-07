@@ -690,7 +690,7 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
         setZoneQuantities(prev => ({ ...prev, [zoneName]: Number(value) || 0 }));
     };
 
-    const handleAddSubActivity = (activityIndex) => {
+    const handleAddSubActivity = (activityCode) => {
         if (!currentSubActivity.name || !currentSubActivity.unit || !currentSubActivity.totalWork || !currentSubActivity.BoQ) {
             toast({ variant: 'destructive', title: 'Missing Fields', description: 'BoQ, Name, Unit, and Total Work are required.' });
             return;
@@ -698,7 +698,7 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
 
         const newSubActivity = {
             ...currentSubActivity,
-            activityId: activityIndex, // Using index as temporary ID
+            activityCode: activityCode,
             zoneQuantities
         };
         
@@ -710,8 +710,8 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
         setZoneQuantities({});
     };
 
-    const getSubActivitiesForActivity = (activityIndex) => {
-        return (formData.subActivities || []).filter(sa => sa.activityId === activityIndex);
+    const getSubActivitiesForActivity = (activityCode) => {
+        return (formData.subActivities || []).filter(sa => sa.activityCode === activityCode);
     }
     
     if (activities.length === 0) {
@@ -796,13 +796,13 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
                                         </div>
                                     ) : <p className="text-xs text-muted-foreground">No zones defined. Go back to Step 6 to add zones.</p>}
                                 </div>
-                                <Button onClick={() => handleAddSubActivity(index)}><PlusCircle className="mr-2 h-4 w-4"/> Add Sub-activity</Button>
+                                <Button onClick={() => handleAddSubActivity(activity.code)}><PlusCircle className="mr-2 h-4 w-4"/> Add Sub-activity</Button>
                                 
                                 <hr />
 
                                 <h4 className="font-semibold text-md">Defined Sub-activities</h4>
                                 <div className="space-y-4">
-                                    {getSubActivitiesForActivity(index).map((sa, saIndex) => (
+                                    {getSubActivitiesForActivity(activity.code).map((sa, saIndex) => (
                                         <div key={saIndex} className="p-3 border rounded-lg bg-muted/20">
                                             <div className="flex justify-between items-start">
                                                 <div>
@@ -821,7 +821,7 @@ const Step8_SubActivities = ({ formData, units, handleMultiSelectChange, handleI
                                             </div>
                                         </div>
                                     ))}
-                                    {getSubActivitiesForActivity(index).length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No sub-activities added yet.</p>}
+                                    {getSubActivitiesForActivity(activity.code).length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No sub-activities added yet.</p>}
                                 </div>
                             </div>
                         </AccordionContent>
@@ -918,7 +918,7 @@ const Step9_Review = ({ formData, companyMap, userMap }) => {
                                     <div key={index} className="mt-1 p-2 border-l-2">
                                         <p className="font-medium">{act.name} ({act.code})</p>
                                         <ul className="list-disc list-inside pl-4 text-sm">
-                                            {subActivities.filter(sa => sa.activityId === index).map((sa, saIndex) => (
+                                            {subActivities.filter(sa => sa.activityCode === act.code).map((sa, saIndex) => (
                                                 <li key={saIndex}>{sa.name} ({sa.BoQ}) - <span className="text-muted-foreground">{sa.totalWork} {sa.unit}</span></li>
                                             ))}
                                         </ul>
@@ -1019,13 +1019,13 @@ export default function NewProjectWizard() {
         return;
     }
 
-    const activityMap = new Map(activities.map((act, index) => [index, act]));
+    const activityMap = new Map(activities.map((act) => [act.code, act]));
     const zoneNames = zones.map(zone => zone.name);
 
     const dataToExport = subActivities.map(sa => {
-        const activity = activityMap.get(sa.activityId);
+        const activity = activityMap.get(sa.activityCode);
         const row: Record<string, any> = {
-            'ActivityCode': activity?.code || '',
+            'ActivityCode': activity?.code || sa.activityCode,
             'ActivityName': activity?.name || '',
             'BoQ': sa.BoQ,
             'SubActivityName': sa.name,
@@ -1043,7 +1043,7 @@ export default function NewProjectWizard() {
         // Create a template with headers if there are no sub-activities
         const headers = ['ActivityCode', 'ActivityName', 'BoQ', 'SubActivityName', 'Description', 'Unit', 'TotalWork', ...zoneNames];
         const templateRow = activities.map(act => ({'ActivityCode': act.code, 'ActivityName': act.name}));
-        const csv = Papa.unparse(templateRow.length > 0 ? templateRow : [headers]);
+        const csv = Papa.unparse(templateRow.length > 0 ? templateRow : [[]], {header: true, columns: headers});
         triggerDownload(csv, 'boq_template.csv');
         toast({ title: "Template Exported", description: "A template CSV has been downloaded." });
     } else {
@@ -1113,7 +1113,7 @@ export default function NewProjectWizard() {
                     description: Description || '',
                     unit: Unit,
                     totalWork: Number(TotalWork) || 0,
-                    activityId: activityIndex,
+                    activityCode: ActivityCode,
                     zoneQuantities,
                 });
             }
