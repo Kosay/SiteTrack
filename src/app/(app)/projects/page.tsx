@@ -13,6 +13,7 @@ import {
   XCircle,
   Archive,
   Edit,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   Card,
@@ -302,6 +303,12 @@ export default function ProjectsPage() {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/projects/${project.id}/dashboard`}>
+                                    <LayoutDashboard className="mr-2" />
+                                    <span>Dashboard</span>
+                                  </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                 <Link href={`/projects/${project.id}/edit`}>
                                     <Edit className="mr-2" />
