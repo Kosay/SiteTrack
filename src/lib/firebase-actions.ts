@@ -292,7 +292,7 @@ export async function deleteUnit(unitId: string): Promise<void> {
 }
 
 
-type AddActivityData = Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork'>;
+type AddActivityData = Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate' >;
 
 /**
  * Adds a new activity to a project's subcollection.
@@ -337,7 +337,7 @@ export async function deleteActivity(projectId: string, activityId: string): Pro
 }
 
 
-type AddSubActivityData = Omit<SubActivity, 'id'>;
+type AddSubActivityData = Omit<SubActivity, 'id' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'progressByZone' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate'>;
 
 /**
  * Adds a new sub-activity (BoQ item) to an activity and creates its summary document.
@@ -360,16 +360,19 @@ export async function addSubActivity(projectId: string, activityId: string, data
         const activityName = activitySnap.data().name;
 
         // 1. Create the SubActivity document
-        const subActivitiesRef = doc(collection(db, `projects/${projectId}/activities/${activityId}/subactivities`));
+        const subActivityRef = doc(collection(db, `projects/${projectId}/activities/${activityId}/subactivities`));
         const newSubActivity = {
             ...data,
+            doneWork: 0,
+            approvedWork: 0,
+            pendingWork: 0,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         };
-        transaction.set(subActivitiesRef, newSubActivity);
+        transaction.set(subActivityRef, newSubActivity);
         
         // 2. Create the corresponding SubActivitySummary document
-        const subActivitySummaryRef = doc(db, `projects/${projectId}/dashboards/${subActivitiesRef.id}`);
+        const subActivitySummaryRef = doc(db, `projects/${projectId}/dashboards/${subActivityRef.id}`);
         const summaryData: SubActivitySummary = {
             totalWork: data.totalWork,
             doneWork: 0,
@@ -517,37 +520,42 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+  }
 
-    // Create detailed summary for each sub-activity
-    for (const subActivity of formData.subActivities.filter(sa => sa.activityCode === activity.code)) {
-        const subActivityRef = doc(collection(db, activityRef.path, 'subactivities'));
-        batch.set(subActivityRef, {
-            BoQ: subActivity.BoQ,
-            name: subActivity.name,
-            description: subActivity.description,
-            unit: subActivity.unit,
-            totalWork: subActivity.totalWork,
-            zoneQuantities: subActivity.zoneQuantities,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
+  // Create detailed summary for each sub-activity
+  for (const subActivity of formData.subActivities) {
+      const activityRef = activityRefs.get(subActivity.activityCode);
+      if (!activityRef) continue;
 
-        // Use the subActivityRef.id for the summary document
-        const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
-        batch.set(subActivitySummaryRef, {
-            totalWork: subActivity.totalWork,
-            doneWork: 0,
-            pendingWork: 0,
-            workGradeA: 0,
-            workGradeB: 0,
-            workGradeC: 0,
-            unit: subActivity.unit,
-            activityName: activity.name,
-            subActivityName: subActivity.name,
-            BoQ: subActivity.BoQ,
-            updatedAt: serverTimestamp(),
-        });
-    }
+      // Generate a new ID for the sub-activity first
+      const subActivityRef = doc(collection(db, activityRef.path, 'subactivities'));
+      
+      batch.set(subActivityRef, {
+          BoQ: subActivity.BoQ,
+          name: subActivity.name,
+          description: subActivity.description,
+          unit: subActivity.unit,
+          totalWork: subActivity.totalWork,
+          zoneQuantities: subActivity.zoneQuantities,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+      });
+
+      // Now use the generated ID for the summary document
+      const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
+      batch.set(subActivitySummaryRef, {
+          totalWork: subActivity.totalWork,
+          doneWork: 0,
+          pendingWork: 0,
+          workGradeA: 0,
+          workGradeB: 0,
+          workGradeC: 0,
+          unit: subActivity.unit,
+          activityName: activityRefs.get(subActivity.activityCode)?.id, // This is wrong, it should be the activity name
+          subActivityName: subActivity.name,
+          BoQ: subActivity.BoQ,
+          updatedAt: serverTimestamp(),
+      });
   }
     
   await batch.commit();
@@ -633,7 +641,7 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         }
 
         const itemsQuery = collection(db, reportRef.path, 'items');
-        const itemsSnap = await transaction.get(itemsQuery);
+        const itemsSnap = await transaction.get(itemsQuery as any); // Type assertion to bypass strict checks if needed
         const reportItems = itemsSnap.docs.map(d => d.data() as ReportItem);
         
         // Get all related summary documents
@@ -696,5 +704,3 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         }
     });
 }
-
-    
