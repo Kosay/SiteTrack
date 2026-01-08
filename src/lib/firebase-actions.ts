@@ -390,7 +390,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     companyId: formData.companyId,
     directorId: formData.directorId,
     pmId: formData.pmId,
-    pmName: userMap.get(formData.pmId)?.name, // This is the fix
+    pmName: userMap.get(formData.pmId)?.name,
     status: formData.status,
     address: formData.address,
     googleMapsUrl: formData.googleMapsUrl,
@@ -440,7 +440,6 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
         createdAt: serverTimestamp(), 
         updatedAt: serverTimestamp() 
       };
-      // Only add mapSvg if it has a value
       if (zone.mapSvg && zone.mapSvg.trim() !== '') {
         zoneData.mapSvg = zone.mapSvg;
       }
@@ -464,7 +463,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     });
   }
 
-  for (const subActivity of formData.subActivities) {
+  for (const subActivity of formData.subActivities || []) {
     const parentActivityRef = activityRefs.get(subActivity.activityCode);
     if(parentActivityRef) {
         const subActivityRef = doc(collection(db, parentActivityRef.path, 'subactivities'));
@@ -510,13 +509,18 @@ export async function createProgressReport(
     const { projectId, ...reportData } = data;
 
     const reportRef = doc(collection(db, `projects/${projectId}/progress_reports`));
+    
+    const today = new Date();
+    const diaryDate = today.getFullYear().toString() + 
+                      (today.getMonth() + 1).toString().padStart(2, '0') + 
+                      today.getDate().toString().padStart(2, '0');
 
     const newReport: Omit<ProgressReport, 'id'> = {
         ...reportData,
         companyId: project.companyId,
-        engineerId: user.id,
-        date: new Date(),
-        diaryDate: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+        engineerId: user.uid,
+        date: today,
+        diaryDate: diaryDate,
         status: 'Pending',
         inspectionStatus: 'Pending',
         createdAt: serverTimestamp(),
@@ -524,3 +528,5 @@ export async function createProgressReport(
 
     await setDoc(reportRef, newReport);
 }
+
+    
