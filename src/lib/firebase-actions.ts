@@ -14,6 +14,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
+import { format } from 'date-fns';
 import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
@@ -433,23 +434,23 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
 
   // 3. Add Zones
   for (const zone of formData.zones || []) {
-      const zoneRef = doc(collection(db, `projects/${projectRef.id}/zones`));
-      const zoneData: any = { 
-        name: zone.name, 
-        createdAt: serverTimestamp(), 
-        updatedAt: serverTimestamp() 
-      };
-      if (zone.mapSvg && zone.mapSvg.trim() !== '') {
-        zoneData.mapSvg = zone.mapSvg;
-      }
-      batch.set(zoneRef, zoneData);
+    const zoneRef = doc(collection(db, `projects/${projectRef.id}/zones`));
+    const zoneData: any = { 
+      name: zone.name, 
+      createdAt: serverTimestamp(), 
+      updatedAt: serverTimestamp() 
+    };
+    if (zone.mapSvg && zone.mapSvg.trim() !== '') {
+      zoneData.mapSvg = zone.mapSvg;
+    }
+    batch.set(zoneRef, zoneData);
   }
 
   // 4. Add Activities and Sub-activities
   const activityRefs: Map<string, any> = new Map();
   for (const activity of formData.activities) {
     const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
-    activityRefs.set(activity.activityId || activity.code, activityRef); // Use activityId from manual add, code from import
+    activityRefs.set(activity.code, activityRef);
     batch.set(activityRef, {
         name: activity.name,
         code: activity.code,
@@ -523,5 +524,3 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
 
     await batch.commit();
 }
-
-    
