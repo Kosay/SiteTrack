@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -41,10 +42,22 @@ export default function DailyProgressPage() {
   const projectsCollection = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
   const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsCollection);
 
-  const currentProject = useMemo(() => projects?.find(p => p.id === selectedProject), [projects, selectedProject]);
-  
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<SiteUser>(usersCollection);
+
+  const userCompanyId = useMemo(() => {
+    if (!user || !users) return null;
+    return users.find(u => u.id === user.uid)?.companyId;
+  }, [user, users]);
+
+  const userCompanyQuery = useMemoFirebase(() => {
+      if(!userCompanyId) return null;
+      return query(collection(firestore, 'companies'), where('id', '==', userCompanyId));
+  }, [firestore, userCompanyId]);
+  const {data: userCompany} = useCollection<Company>(userCompanyQuery);
+
+  const currentProject = useMemo(() => projects?.find(p => p.id === selectedProject), [projects, selectedProject]);
+  const projectPM = useMemo(() => users?.find(u => u.id === currentProject?.pmId), [users, currentProject]);
   
   const activitiesQuery = useMemoFirebase(() => {
     if (!selectedProject) return null;
@@ -66,12 +79,6 @@ export default function DailyProgressPage() {
 
   const constructionManagers = useMemo(() => users?.filter(u => u.position === 'CM'), [users]);
   
-  const userCompanyQuery = useMemoFirebase(() => {
-      if(!user) return null;
-      return query(collection(firestore, 'companies'), where('id', '==', users?.find(u => u.id === user.uid)?.companyId || ''));
-  }, [firestore, user, users]);
-  const {data: userCompany} = useCollection<Company>(userCompanyQuery);
-
   useEffect(() => {
     setSelectedActivity('');
     setSelectedSubActivity(null);
@@ -149,7 +156,7 @@ export default function DailyProgressPage() {
                     </div>
                      <div className="space-y-2">
                         <Label>Project Manager (PM)</Label>
-                        <Input value={currentProject?.pmName || 'Select a project first'} disabled />
+                        <Input value={projectPM?.name || currentProject?.pmName || 'Select a project first'} disabled />
                     </div>
                 </div>
 
