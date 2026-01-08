@@ -94,6 +94,7 @@ export default function DailyProgressPage() {
   const { data: zones, isLoading: isLoadingZones } = useCollection<Zone>(zonesQuery);
 
   const constructionManagers = useMemo(() => users?.filter(u => u.position === 'CM' && u.companyId === selectedProject?.companyId), [users, selectedProject]);
+  const engineerName = useMemo(() => user && userMap.get(user.uid), [user, userMap]);
 
   useEffect(() => {
     setSelectedActivity(null);
@@ -143,7 +144,7 @@ export default function DailyProgressPage() {
   };
   
   const handleSubmitReport = async () => {
-      if (!user || !selectedProject || !selectedCM || stagedItems.length === 0) {
+      if (!user || !selectedProject || !selectedCM || stagedItems.length === 0 || !engineerName) {
           toast({ variant: 'destructive', title: 'Incomplete Report', description: 'Please select project, CM, and add at least one item.' });
           return;
       }
@@ -153,6 +154,7 @@ export default function DailyProgressPage() {
               projectId: selectedProject.id,
               companyId: selectedProject.companyId,
               engineerId: user.uid,
+              engineerName: engineerName,
               pmId: selectedProject.pmId,
               cmId: selectedCM,
               reportDate: reportDate,
@@ -237,6 +239,12 @@ export default function DailyProgressPage() {
                                 />
                                 </PopoverContent>
                             </Popover>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <Label>Submitting Engineer</Label>
+                            <Input value={engineerName || 'Loading...'} disabled />
                         </div>
                     </div>
                 </CardContent>

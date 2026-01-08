@@ -490,6 +490,7 @@ interface CreateDailyReportData {
     projectId: string;
     companyId: string;
     engineerId: string;
+    engineerName: string;
     pmId: string;
     cmId: string;
     reportDate: Date;

@@ -226,6 +226,7 @@ export interface DailyReport {
     projectId: string;
     companyId: string;
     engineerId: string;
+    engineerName: string;
     pmId: string;
     cmId: string;
     reportDate: any; // Firestore Timestamp
@@ -324,5 +325,3 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
-
-    

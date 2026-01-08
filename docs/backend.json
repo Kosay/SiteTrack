@@ -209,6 +209,7 @@
         "projectId": { "type": "string" },
         "companyId": { "type": "string" },
         "engineerId": { "type": "string" },
+        "engineerName": { "type": "string", "description": "Denormalized engineer name for fast display." },
         "pmId": { "type": "string" },
         "cmId": { "type": "string" },
         "reportDate": { "type": "string", "format": "date-time", "description": "The date the work was performed." },
@@ -312,5 +313,3 @@
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
   }
 }
-
-    
