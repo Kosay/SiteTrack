@@ -16,6 +16,7 @@ import {
   ListChecks,
   Mail,
   Send,
+  Search,
 } from 'lucide-react';
 
 import {
@@ -33,6 +34,7 @@ const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { label: 'Progress Log', href: '/progress', icon: ClipboardPlus },
   { label: 'Daily Progress', href: '/daily-progress', icon: Send },
+  { label: 'Daily Report Review', href: '/daily-report-review', icon: Search },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
