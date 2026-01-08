@@ -13,6 +13,7 @@ import {
   deleteDoc,
   WriteBatch,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem } from './types';
@@ -494,34 +495,59 @@ interface CreateDailyReportData {
     pmId: string;
     cmId: string;
     reportDate: Date;
-    items: Omit<ReportItem, 'id'>[];
+    items: (Omit<ReportItem, 'id'> & { zoneName: string })[];
 }
 
 export async function createDailyReport(data: CreateDailyReportData): Promise<void> {
     const db = getDb();
     const { projectId, items, reportDate, ...reportHeader } = data;
     
-    const batch = writeBatch(db);
+    await runTransaction(db, async (transaction) => {
+        // 1. Create the main DailyReport document
+        const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
+        const diaryDate = format(reportDate, 'yyyyMMdd');
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    // 1. Create the main DailyReport document
-    const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
-    
-    const diaryDate = format(reportDate, 'yyyyMMdd');
+        const newReport: Omit<DailyReport, 'id'> = {
+            ...reportHeader,
+            reportDate: reportDate,
+            diaryDate: diaryDate,
+            status: 'Pending',
+            totalQuantity: totalQuantity,
+            createdAt: serverTimestamp(),
+        };
+        transaction.set(reportRef, newReport);
 
-    const newReport: Omit<DailyReport, 'id'> = {
-        ...reportHeader,
-        reportDate: reportDate,
-        diaryDate: diaryDate,
-        status: 'Pending',
-        createdAt: serverTimestamp(),
-    };
-    batch.set(reportRef, newReport);
+        // 2. Create each report item and update aggregate fields
+        for (const item of items) {
+            const { zoneName, ...itemData } = item;
+            const itemRef = doc(collection(db, reportRef.path, 'items'));
+            transaction.set(itemRef, itemData);
+            
+            // 3. Update the corresponding SubActivity for aggregation
+            const subActivityRef = doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`);
+            const subActivityDoc = await transaction.get(subActivityRef);
 
-    // 2. Create each report item in the subcollection
-    for (const item of items) {
-        const itemRef = doc(collection(db, reportRef.path, 'items'));
-        batch.set(itemRef, item);
-    }
+            if (!subActivityDoc.exists()) {
+                throw new Error(`SubActivity with ID ${item.subActivityId} not found.`);
+            }
 
-    await batch.commit();
+            const currentSubActivity = subActivityDoc.data() as SubActivity;
+            const newPendingWork = (currentSubActivity.pendingWork || 0) + item.quantity;
+            
+            // Initialize progressByZone if it doesn't exist
+            const progressByZone = currentSubActivity.progressByZone || {};
+            const zoneProgress = progressByZone[zoneName] || { doneWork: 0, pendingWork: 0 };
+            zoneProgress.pendingWork = (zoneProgress.pendingWork || 0) + item.quantity;
+            progressByZone[zoneName] = zoneProgress;
+
+            transaction.update(subActivityRef, { 
+                pendingWork: newPendingWork,
+                progressByZone: progressByZone,
+                updatedAt: serverTimestamp(),
+            });
+        }
+    });
 }
+
+    

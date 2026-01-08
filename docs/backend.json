@@ -156,11 +156,11 @@
     },
     "Activity": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "Activity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "code": { "type": "string" }, "description": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" } }, "required": ["name", "code", "description"]
+        "title": "Activity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "code": { "type": "string" }, "description": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "pendingWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" } }, "required": ["name", "code", "description"]
     },
     "SubActivity": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "SubActivity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "unit": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" } }, "required": ["name", "description", "unit", "totalWork"]
+        "title": "SubActivity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "unit": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "pendingWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" }, "progressByZone": { "type": "object", "description": "A map tracking work quantities for each zone." } }, "required": ["name", "description", "unit", "totalWork"]
     },
     "SubActivityZoneQuantity": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -215,7 +215,8 @@
         "reportDate": { "type": "string", "format": "date-time", "description": "The date the work was performed." },
         "diaryDate": { "type": "string", "description": "The report date in YYYYMMDD format for indexing." },
         "createdAt": { "type": "string", "format": "date-time", "description": "The submission timestamp." },
-        "status": { "type": "string", "enum": ["Pending", "Approved"] }
+        "status": { "type": "string", "enum": ["Pending", "Approved"] },
+        "totalQuantity": { "type": "number", "description": "Sum of all item quantities in this report." }
       },
       "required": ["projectId", "companyId", "engineerId", "pmId", "cmId", "reportDate", "diaryDate", "createdAt", "status"]
     },
@@ -313,3 +314,5 @@
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
   }
 }
+
+    

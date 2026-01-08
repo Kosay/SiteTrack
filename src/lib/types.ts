@@ -1,4 +1,5 @@
 
+
 // Type definitions based on the new docs/backend.json
 
 // Top-level entities
@@ -162,10 +163,10 @@ export interface Activity {
     totalWork?: number;
     doneWork?: number;
     approvedWork?: number;
+    pendingWork?: number;
     workGradeA?: number;
     workGradeB?: number;
     workGradeC?: number;
-
     plannedQuantity?: number;
     plannedStartDate?: any; // Firestore Timestamp
     plannedEndDate?: any; // Firestore Timestamp
@@ -180,9 +181,11 @@ export interface SubActivity {
     totalWork: number;
     doneWork?: number;
     approvedWork?: number;
+    pendingWork?: number;
     workGradeA?: number;
     workGradeB?: number;
     workGradeC?: number;
+    progressByZone?: { [zoneName: string]: { doneWork: number; pendingWork: number } };
     plannedQuantity?: number;
     plannedStartDate?: any; // Firestore Timestamp
     plannedEndDate?: any; // Firestore Timestamp
@@ -233,6 +236,7 @@ export interface DailyReport {
     diaryDate: string; // YYYYMMDD
     createdAt: any; // Firestore Timestamp
     status: "Pending" | "Approved";
+    totalQuantity: number;
 }
 
 export interface ReportItem {
@@ -325,3 +329,5 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
+
+    

@@ -158,7 +158,10 @@ export default function DailyProgressPage() {
               pmId: selectedProject.pmId,
               cmId: selectedCM,
               reportDate: reportDate,
-              items: stagedItems,
+              items: stagedItems.map(item => {
+                const {activityName, subActivityName, subActivityBoQ, unit, ...rest} = item;
+                return rest;
+              }),
           });
           toast({ title: 'Report Submitted', description: 'Your daily progress has been logged.' });
           setStagedItems([]);
@@ -380,3 +383,5 @@ export default function DailyProgressPage() {
     </div>
   );
 }
+
+    
