@@ -46,6 +46,13 @@ export default function DailyReportReviewPage() {
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<SiteUser>(usersCollection);
 
+  const [activitiesMap, setActivitiesMap] = useState<Map<string, Activity>>(new Map());
+  const [subActivitiesMap, setSubActivitiesMap] = useState<Map<string, SubActivity>>(new Map());
+  const [zonesMap, setZonesMap] = useState<Map<string, Zone>>(new Map());
+
+  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+  const projectMap = useMemo(() => new Map(projects?.map(p => [p.id, p.name])), [projects]);
+
   const masterDataQuery = useMemoFirebase(() => {
     if (!projects?.length) return null;
     const projectIds = projects.map(p => p.id);
@@ -58,18 +65,7 @@ export default function DailyReportReviewPage() {
     return query(collection(firestore, `projects/${projectIds[0]}/activities`));
   }, [projects, firestore]);
 
-  const { data: masterData, isLoading: isLoadingMaster } = useCollection(masterDataQuery);
-
-
-  const [activitiesMap, subActivitiesMap, zonesMap, userMap, projectMap] = useMemo(() => {
-    const actMap = new Map<string, Activity>();
-    const subActMap = new Map<string, SubActivity>();
-    const zMap = new Map<string, Zone>();
-    const uMap = new Map(users?.map(u => [u.id, u.name]));
-    const pMap = new Map(projects?.map(p => [p.id, p.name]));
-    return [actMap, subActMap, zMap, uMap, pMap];
-  }, [users, projects]);
-
+  const { isLoading: isLoadingMaster } = useCollection(masterDataQuery);
 
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -99,13 +95,13 @@ export default function DailyReportReviewPage() {
         });
       }
       
-      (activitiesMap as any) = newActivitiesMap;
-      (subActivitiesMap as any) = newSubActivitiesMap;
-      (zonesMap as any) = newZonesMap;
+      setActivitiesMap(newActivitiesMap);
+      setSubActivitiesMap(newSubActivitiesMap);
+      setZonesMap(newZonesMap);
     };
 
     fetchMasterData();
-  }, [projects, firestore, activitiesMap, subActivitiesMap, zonesMap]);
+  }, [projects, firestore]);
 
 
   const handleSearch = async () => {
@@ -271,8 +267,8 @@ export default function DailyReportReviewPage() {
                                 </div>
                              </AccordionTrigger>
                              <AccordionContent className="p-4 space-y-3 bg-muted/30">
-                                {report.items.map(item => (
-                                    <div key={item.id} className="p-3 border rounded-md bg-background">
+                                {report.items.map((item, index) => (
+                                    <div key={index} className="p-3 border rounded-md bg-background">
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-1">
                                                 <p className="font-semibold text-sm">{subActivitiesMap.get(item.subActivityId)?.name || 'Unknown'}</p>
@@ -305,4 +301,3 @@ export default function DailyReportReviewPage() {
     </div>
   );
 }
-
