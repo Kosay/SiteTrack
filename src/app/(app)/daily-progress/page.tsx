@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, Send, PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import type { Company, Project, Activity, SubActivity, Zone, User as SiteUser, ReportItem } from '@/lib/types';
 import { createDailyReport } from '@/lib/firebase-actions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 type StagedReportItem = Omit<ReportItem, 'id'> & {
+    reportDate: Date;
     activityName: string;
     subActivityName: string;
     subActivityBoQ: string;
@@ -71,9 +72,9 @@ export default function DailyProgressPage() {
   const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
   
   const companyId = selectedProject?.companyId;
-  const companyQuery = useMemoFirebase(() => companyId ? query(collection(firestore, 'companies'),) : null, [companyId, firestore]);
+  const companyQuery = useMemoFirebase(() => companyId ? query(collection(firestore, 'companies'), where('__name__', '==', companyId)) : null, [companyId, firestore]);
   const { data: companies } = useCollection<Company>(companyQuery);
-  const companyName = companies?.find(c => c.id === companyId)?.name || '';
+  const companyName = companies?.[0]?.name || '';
   
   const activitiesQuery = useMemoFirebase(() => {
     if (!selectedProject) return null;
@@ -114,6 +115,7 @@ export default function DailyProgressPage() {
     }
     
     const newItem: StagedReportItem = {
+        reportDate: reportDate,
         activityId: selectedActivity.id,
         subActivityId: selectedSubActivity.id,
         zoneId: selectedZone.id,
@@ -149,22 +151,42 @@ export default function DailyProgressPage() {
           return;
       }
       setIsSubmitting(true);
+
+      // Group items by date
+      const reportsByDate = stagedItems.reduce((acc, item) => {
+        const dateString = format(item.reportDate, 'yyyy-MM-dd');
+        if (!acc[dateString]) {
+            acc[dateString] = [];
+        }
+        acc[dateString].push(item);
+        return acc;
+      }, {} as Record<string, StagedReportItem[]>);
+
       try {
-          await createDailyReport({
+        let successfulReports = 0;
+        for (const dateString in reportsByDate) {
+            const itemsForDate = reportsByDate[dateString];
+            const date = itemsForDate[0].reportDate;
+            
+            await createDailyReport({
               projectId: selectedProject.id,
               companyId: selectedProject.companyId,
               engineerId: user.uid,
               engineerName: engineerName,
               pmId: selectedProject.pmId,
               cmId: selectedCM,
-              reportDate: reportDate,
-              items: stagedItems.map(item => {
-                const {activityName, subActivityName, subActivityBoQ, unit, ...rest} = item;
+              reportDate: date,
+              items: itemsForDate.map(item => {
+                const {activityName, subActivityName, subActivityBoQ, unit, reportDate, ...rest} = item;
                 return rest;
               }),
-          });
-          toast({ title: 'Report Submitted', description: 'Your daily progress has been logged.' });
-          setStagedItems([]);
+            });
+            successfulReports++;
+        }
+        
+        toast({ title: 'Reports Submitted', description: `${successfulReports} daily progress reports have been logged.` });
+        setStagedItems([]);
+
       } catch (error: any) {
           toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
       } finally {
@@ -256,7 +278,7 @@ export default function DailyProgressPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Add Progress Item</CardTitle>
-                    <CardDescription>Define a single piece of work completed.</CardDescription>
+                    <CardDescription>Define a single piece of work completed. The current selected date will be assigned to this item.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -361,6 +383,7 @@ export default function DailyProgressPage() {
                                     <p><span className="text-muted-foreground">Zone:</span> {item.zoneName}</p>
                                     <p className="font-medium">{item.quantity} {item.unit}</p>
                                 </div>
+                                <p className="text-xs text-muted-foreground"><span className="font-medium">Date:</span> {format(item.reportDate, "PPP")}</p>
                                 {item.remarks && <p className='text-xs text-muted-foreground italic pt-1'>"{item.remarks}"</p>}
                             </div>
                         ))
@@ -373,7 +396,7 @@ export default function DailyProgressPage() {
                 <CardFooter>
                     <Button onClick={handleSubmitReport} disabled={isSubmitting || stagedItems.length === 0} className="w-full">
                         {isSubmitting && <LoaderCircle className="mr-2 animate-spin" />}
-                        Submit Report ({stagedItems.length})
+                        Submit {isSubmitting ? '...' : `Reports (${Object.keys(stagedItems.reduce((acc, item) => { acc[format(item.reportDate, 'yyyy-MM-dd')] = true; return acc; }, {})).length})`}
                         <Send className="ml-2" />
                     </Button>
                 </CardFooter>
