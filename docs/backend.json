@@ -326,7 +326,7 @@
     "/projects/{projectId}": { "schema": { "$ref": "#/entities/Project" } },
     "/projects/{projectId}/members/{userId}": { "schema": { "$ref": "#/entities/ProjectMember" } },
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } },
-    "/projects/{projectId}/dashboards/summary/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivitySummary" } },
+    "/projects/{projectId}/dashboards/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivitySummary" } },
     "/equipment/{equipmentId}": { "schema": { "$ref": "#/entities/Equipment" } },
     "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
     "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },

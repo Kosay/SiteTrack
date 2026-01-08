@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -496,7 +497,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
             updatedAt: serverTimestamp(),
         });
 
-        const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary/${subActivityRef.id}`);
+        const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
         batch.set(subActivitySummaryRef, {
             totalWork: subActivity.totalWork,
             doneWork: 0,
@@ -535,16 +536,11 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
     await runTransaction(db, async (transaction) => {
         // --- 1. READS ---
         const subActivitySummaryRefs = items.map(item => 
-            doc(db, `projects/${projectId}/dashboards/summary/${item.subActivityId}`)
+            doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`)
         );
-        const subActivitySummarySnapshots = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
+        const subActivitySummarySnaps = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
         
         // --- 2. LOGIC & VALIDATION ---
-        for (let i = 0; i < subActivitySummarySnapshots.length; i++) {
-            if (!subActivitySummarySnapshots[i].exists()) {
-                throw new Error(`SubActivitySummary for ID ${items[i].subActivityId} not found. Project may need re-initialization.`);
-            }
-        }
         const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
         
         // --- 3. WRITES ---
@@ -569,10 +565,16 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
             
             // Update the detailed sub-activity summary
             const summaryRef = subActivitySummaryRefs[i];
-            transaction.update(summaryRef, {
-                pendingWork: increment(item.quantity),
-                updatedAt: serverTimestamp()
-            });
+            if (subActivitySummarySnaps[i].exists()) {
+                 transaction.update(summaryRef, {
+                    pendingWork: increment(item.quantity),
+                    updatedAt: serverTimestamp()
+                });
+            } else {
+                // This is a failsafe. This document should have been created by the wizard.
+                // We are not creating it here because we lack all the necessary info (e.g., totalWork).
+                console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
+            }
         }
     });
 }
@@ -599,7 +601,7 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         const reportItems = itemsSnap.docs.map(d => d.data() as ReportItem);
         
         // Get all related summary documents
-        const subActivitySummaryRefs = reportItems.map(item => doc(db, `projects/${projectId}/dashboards/summary/${item.subActivityId}`));
+        const subActivitySummaryRefs = reportItems.map(item => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
         const subActivitySummarySnaps = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
 
         const overallSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);

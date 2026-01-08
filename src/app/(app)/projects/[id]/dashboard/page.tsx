@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useCollection, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import type { Project, ProjectDashboardSummary } from '@/lib/types';
 import {
   Card,
@@ -35,7 +36,13 @@ export default function ProjectDashboardPage() {
   const { data: summary, isLoading: isLoadingSummary } =
     useDoc<ProjectDashboardSummary>(summaryRef);
 
-  const isLoading = isLoadingProject || isLoadingSummary;
+  const subActivitiesSummaryRef = useMemoFirebase(
+    () => collection(firestore, `projects/${id}/dashboards`),
+    [firestore, id]
+  );
+  const { data: subActivitiesSummary, isLoading: isLoadingSubActivitiesSummary } = useCollection(subActivitiesSummaryRef);
+
+  const isLoading = isLoadingProject || isLoadingSummary || isLoadingSubActivitiesSummary;
 
   if (isLoading) {
     return (
@@ -46,12 +53,12 @@ export default function ProjectDashboardPage() {
     );
   }
 
-  if (!project || !summary) {
+  if (!project) {
     return (
       <div className="text-center">
         <h2 className="text-2xl font-bold">Project Data Not Found</h2>
         <p className="text-muted-foreground">
-          The project or its summary data could not be loaded. This might be an older project created before summaries were tracked.
+          The project could not be loaded.
         </p>
         <Button asChild className="mt-4">
           <Link href="/projects">Go Back</Link>
@@ -60,7 +67,7 @@ export default function ProjectDashboardPage() {
     );
   }
   
-  const progressPercent = summary.overallProgress || 0;
+  const progressPercent = summary?.overallProgress || 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -82,12 +89,14 @@ export default function ProjectDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Progress Summary</CardTitle>
-          <CardDescription>
-            Last report submitted on:{' '}
-            {summary.lastReportAt
-              ? format(summary.lastReportAt.toDate(), 'PPP p')
-              : 'N/A'}
-          </CardDescription>
+          {summary && (
+            <CardDescription>
+              Last report submitted on:{' '}
+              {summary.lastReportAt
+                ? format(summary.lastReportAt.toDate(), 'PPP p')
+                : 'N/A'}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -96,29 +105,33 @@ export default function ProjectDashboardPage() {
               <span>{progressPercent.toFixed(2)}%</span>
             </div>
             <Progress value={progressPercent} className="h-4" />
-             <p className="text-xs text-muted-foreground">
-                Based on the weighted average progress of {summary.subActivityCount} sub-activities.
-            </p>
+             {summary && (
+                <p className="text-xs text-muted-foreground">
+                    Based on the weighted average progress of {summary.subActivityCount} sub-activities.
+                </p>
+             )}
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
-             <div>
-                <p className="text-2xl font-bold">{summary.subActivityCount}</p>
-                <p className="text-sm text-muted-foreground">Total Sub-Activities</p>
+          {summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
+                <div>
+                    <p className="text-2xl font-bold">{summary.subActivityCount}</p>
+                    <p className="text-sm text-muted-foreground">Total Sub-Activities</p>
+                </div>
+                <div>
+                    <p className="text-2xl font-bold text-green-600">{summary.totalProgressSum.toFixed(2)}%</p>
+                    <p className="text-sm text-muted-foreground">Sum of Percentages</p>
+                </div>
+                <div>
+                    <p className="text-2xl font-bold text-blue-600">{progressPercent.toFixed(2)}%</p>
+                    <p className="text-sm text-muted-foreground">Overall Average</p>
+                </div>
+                <div>
+                    <p className="text-2xl font-bold text-red-600">{ (100 - progressPercent).toFixed(2) }%</p>
+                    <p className="text-sm text-muted-foreground">Remaining</p>
+                </div>
             </div>
-             <div>
-                <p className="text-2xl font-bold text-green-600">{summary.totalProgressSum.toFixed(2)}%</p>
-                <p className="text-sm text-muted-foreground">Sum of Percentages</p>
-            </div>
-             <div>
-                <p className="text-2xl font-bold text-blue-600">{progressPercent.toFixed(2)}%</p>
-                <p className="text-sm text-muted-foreground">Overall Average</p>
-            </div>
-             <div>
-                <p className="text-2xl font-bold text-red-600">{ (100 - progressPercent).toFixed(2) }%</p>
-                <p className="text-sm text-muted-foreground">Remaining</p>
-            </div>
-          </div>
+          )}
 
         </CardContent>
       </Card>
