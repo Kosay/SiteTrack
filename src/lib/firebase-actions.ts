@@ -510,7 +510,7 @@ interface CreateDailyReportData {
     pmId: string;
     cmId: string;
     reportDate: Date;
-    items: (Omit<ReportItem, 'id'> & { zoneName: string })[];
+    items: (Omit<ReportItem, 'id'> & { zoneName?: string })[];
 }
 
 export async function createDailyReport(data: CreateDailyReportData): Promise<void> {
@@ -519,7 +519,9 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
     
     await runTransaction(db, async (transaction) => {
         // --- 1. ALL READS FIRST ---
-        // Pre-fetch all sub-activity documents that will be updated.
+        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        const summarySnapshot = await transaction.get(summaryRef);
+
         const subActivityRefs = items.map(item => 
             doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`)
         );
@@ -528,7 +530,6 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         // --- 2. LOGIC & VALIDATION ---
         const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
-        // Check for existence of all sub-activities after reading.
         for (let i = 0; i < subActivitySnapshots.length; i++) {
             if (!subActivitySnapshots[i].exists()) {
                 throw new Error(`SubActivity with ID ${items[i].subActivityId} not found.`);
@@ -536,8 +537,6 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         }
         
         // --- 3. ALL WRITES LAST ---
-
-        // Create the main DailyReport document
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
 
@@ -551,40 +550,47 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         };
         transaction.set(reportRef, newReport);
 
-        // Create each report item and update its corresponding aggregate fields
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             const subActivityRef = subActivityRefs[i];
-            const subActivityDoc = subActivitySnapshots[i];
-
-            // Create the ReportItem document
             const { zoneName, ...itemData } = item;
+            
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, itemData);
             
-            // Calculate new values for the SubActivity
+            const subActivityDoc = subActivitySnapshots[i];
             const currentSubActivity = subActivityDoc.data() as SubActivity;
-            const newPendingWork = (currentSubActivity.pendingWork || 0) + item.quantity;
-            
-            const progressByZone = currentSubActivity.progressByZone || {};
-            const zoneProgress = progressByZone[zoneName] || { doneWork: 0, pendingWork: 0 };
-            zoneProgress.pendingWork = (zoneProgress.pendingWork || 0) + item.quantity;
-            progressByZone[zoneName] = zoneProgress;
 
-            // Update the SubActivity document
-            transaction.update(subActivityRef, { 
-                pendingWork: newPendingWork,
-                progressByZone: progressByZone,
+            const updatePayload: any = {
+                pendingWork: increment(item.quantity),
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            if (zoneName) {
+                const zoneKey = `progressByZone.${zoneName}.pendingWork`;
+                updatePayload[zoneKey] = increment(item.quantity);
+            }
+            
+            transaction.update(subActivityRef, updatePayload);
         }
         
-        // Update the ProjectDashboardSummary
-        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
-        transaction.update(summaryRef, {
-            totalPendingWork: increment(totalQuantity),
-            lastReportAt: reportDate,
-            updatedAt: serverTimestamp(),
-        });
+        if (summarySnapshot.exists()) {
+             transaction.update(summaryRef, {
+                totalPendingWork: increment(totalQuantity),
+                lastReportAt: reportDate,
+                updatedAt: serverTimestamp(),
+            });
+        } else {
+            // Document doesn't exist, so create it.
+            const newSummary: ProjectDashboardSummary = {
+                totalWork: 0, // This should be calculated differently, maybe during project creation
+                doneWork: 0,
+                totalPendingWork: totalQuantity,
+                progressPercent: 0,
+                lastReportAt: reportDate,
+                updatedAt: serverTimestamp(),
+            };
+            transaction.set(summaryRef, newSummary);
+        }
     });
 }
