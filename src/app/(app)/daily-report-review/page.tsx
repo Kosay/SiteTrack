@@ -46,7 +46,7 @@ export default function DailyReportReviewPage() {
   const usersCollection = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<SiteUser>(usersCollection);
 
-  const masterDataQuery = useMemo(() => {
+  const masterDataQuery = useMemoFirebase(() => {
     if (!projects?.length) return null;
     const projectIds = projects.map(p => p.id);
     const queries = projectIds.flatMap(id => [
@@ -105,7 +105,7 @@ export default function DailyReportReviewPage() {
     };
 
     fetchMasterData();
-  }, [projects, firestore]);
+  }, [projects, firestore, activitiesMap, subActivitiesMap, zonesMap]);
 
 
   const handleSearch = async () => {
