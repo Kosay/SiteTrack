@@ -17,6 +17,7 @@ import {
   Mail,
   Send,
   Search,
+  ShieldAlert,
 } from 'lucide-react';
 
 import {
@@ -32,7 +33,7 @@ import { UserButton } from './user-button';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
-  { label: 'Progress Log', href: '/progress', icon: ClipboardPlus },
+  { label: 'Safety Log', href: '/progress', icon: ShieldAlert },
   { label: 'Daily Progress', href: '/daily-progress', icon: Send },
   { label: 'Daily Report Review', href: '/daily-report-review', icon: Search },
   { label: 'Reports', href: '/reports', icon: FileText },
