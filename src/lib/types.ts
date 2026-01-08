@@ -1,3 +1,4 @@
+
 // Type definitions based on the new docs/backend.json
 
 // Top-level entities
@@ -219,6 +220,33 @@ export interface ProgressReport {
     road?: string;
     subcontractor?: string;
 }
+
+export interface DailyReport {
+    id: string;
+    projectId: string;
+    companyId: string;
+    engineerId: string;
+    pmId: string;
+    cmId: string;
+    reportDate: any; // Firestore Timestamp
+    diaryDate: string; // YYYYMMDD
+    createdAt: any; // Firestore Timestamp
+    status: "Pending" | "Approved";
+}
+
+export interface ReportItem {
+    id: string;
+    activityId: string;
+    subActivityId: string;
+    zoneId: string;
+    quantity: number;
+    remarks?: string;
+    generalForeman?: string;
+    foreman?: string;
+    road?: string;
+    subcontractor?: string;
+}
+
 
 // Denormalized / Dashboard entities
 export interface ReportIndex {

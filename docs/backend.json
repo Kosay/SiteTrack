@@ -169,7 +169,7 @@
     "ProgressReport": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Progress Report", "type": "object",
-      "description": "Source of truth for a single progress submission.",
+      "description": "Source of truth for a single progress submission. DEPRECATED in favor of DailyReport.",
       "properties": {
         "id": { "type": "string" },
         "companyId": { "type": "string" },
@@ -198,6 +198,44 @@
         "subcontractor": { "type": "string"}
       },
       "required": ["companyId", "projectId", "activityId", "subActivityId", "zoneId", "engineerId", "cmId", "quantity", "date", "diaryDate", "status"]
+    },
+     "DailyReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Daily Report",
+      "type": "object",
+      "description": "A container for a single day's progress report, submitted by an engineer.",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "engineerId": { "type": "string" },
+        "pmId": { "type": "string" },
+        "cmId": { "type": "string" },
+        "reportDate": { "type": "string", "format": "date-time", "description": "The date the work was performed." },
+        "diaryDate": { "type": "string", "description": "The report date in YYYYMMDD format for indexing." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "The submission timestamp." },
+        "status": { "type": "string", "enum": ["Pending", "Approved"] }
+      },
+      "required": ["projectId", "companyId", "engineerId", "pmId", "cmId", "reportDate", "diaryDate", "createdAt", "status"]
+    },
+    "ReportItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Report Item",
+      "type": "object",
+      "description": "A single line item within a Daily Report.",
+      "properties": {
+        "id": { "type": "string" },
+        "activityId": { "type": "string" },
+        "subActivityId": { "type": "string" },
+        "zoneId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "remarks": { "type": "string" },
+        "generalForeman": { "type": "string"},
+        "foreman": { "type": "string"},
+        "road": { "type": "string"},
+        "subcontractor": { "type": "string"}
+      },
+      "required": ["activityId", "subActivityId", "zoneId", "quantity"]
     },
     "ReportIndex": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -265,6 +303,8 @@
     "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivity" } },
     "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}/zoneQuantities/{zoneId}": { "schema": { "$ref": "#/entities/SubActivityZoneQuantity" } },
     "/projects/{projectId}/progress_reports/{reportId}": { "schema": { "$ref": "#/entities/ProgressReport" } },
+    "/projects/{projectId}/daily_reports/{reportId}": { "schema": { "$ref": "#/entities/DailyReport" } },
+    "/projects/{projectId}/daily_reports/{reportId}/items/{itemId}": { "schema": { "$ref": "#/entities/ReportItem" } },
     "/documents/{documentId}": { "schema": { "$ref": "#/entities/Document" } },
     "/report_index/{reportId}": { "schema": { "$ref": "#/entities/ReportIndex" } },
     "/admin_data/summary": { "schema": { "$ref": "#/entities/AdminDashboardSummary" } },

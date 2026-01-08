@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import {
@@ -15,7 +14,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, ProgressReport } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -450,7 +449,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   const activityRefs: Map<string, any> = new Map();
   for (const activity of formData.activities) {
     const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
-    activityRefs.set(activity.code, activityRef);
+    activityRefs.set(activity.activityId || activity.code, activityRef); // Use activityId from manual add, code from import
     batch.set(activityRef, {
         name: activity.name,
         code: activity.code,
@@ -486,47 +485,43 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
 }
 
 
-interface CreateProgressReportData {
+interface CreateDailyReportData {
     projectId: string;
-    activityId: string;
-    subActivityId: string;
+    companyId: string;
+    engineerId: string;
+    pmId: string;
     cmId: string;
-    zoneId: string;
-    quantity: number;
-    generalForeman: string;
-    foreman: string;
-    road?: string;
-    subcontractor?: string;
-    remarks?: string;
+    reportDate: Date;
+    items: Omit<ReportItem, 'id'>[];
 }
 
-export async function createProgressReport(
-    user: User,
-    project: Project,
-    data: CreateProgressReportData
-): Promise<void> {
+export async function createDailyReport(data: CreateDailyReportData): Promise<void> {
     const db = getDb();
-    const { projectId, ...reportData } = data;
-
-    const reportRef = doc(collection(db, `projects/${projectId}/progress_reports`));
+    const { projectId, items, reportDate, ...reportHeader } = data;
     
-    const today = new Date();
-    const diaryDate = today.getFullYear().toString() + 
-                      (today.getMonth() + 1).toString().padStart(2, '0') + 
-                      today.getDate().toString().padStart(2, '0');
+    const batch = writeBatch(db);
 
-    const newReport: Omit<ProgressReport, 'id'> = {
-        ...reportData,
-        companyId: project.companyId,
-        engineerId: user.uid,
-        date: today,
+    // 1. Create the main DailyReport document
+    const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
+    
+    const diaryDate = format(reportDate, 'yyyyMMdd');
+
+    const newReport: Omit<DailyReport, 'id'> = {
+        ...reportHeader,
+        reportDate: reportDate,
         diaryDate: diaryDate,
         status: 'Pending',
-        inspectionStatus: 'Pending',
         createdAt: serverTimestamp(),
     };
+    batch.set(reportRef, newReport);
 
-    await setDoc(reportRef, newReport);
+    // 2. Create each report item in the subcollection
+    for (const item of items) {
+        const itemRef = doc(collection(db, reportRef.path, 'items'));
+        batch.set(itemRef, item);
+    }
+
+    await batch.commit();
 }
 
     
