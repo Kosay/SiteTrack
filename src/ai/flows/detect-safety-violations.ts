@@ -29,40 +29,6 @@ const DetectSafetyViolationsOutputSchema = z.object({
 });
 export type DetectSafetyViolationsOutput = z.infer<typeof DetectSafetyViolationsOutputSchema>;
 
-export async function detectSafetyViolations(
-  input: DetectSafetyViolationsInput
-): Promise<DetectSafetyViolationsOutput> {
-  return detectSafetyViolationsFlow(input);
-}
-
-const detectSafetyViolationsPrompt = ai.definePrompt({
-  name: 'detectSafetyViolationsPrompt',
-  input: {schema: DetectSafetyViolationsInputSchema},
-  output: {schema: DetectSafetyViolationsOutputSchema},
-  prompt: `You are an AI safety inspector for construction sites in the UAE. Your analysis must be grounded in the provided safety regulations.
-
-  **Safety Regulations (Source of Truth):**
-  1.  **Personal Protective Equipment (PPE) - UAE CoP 2.0 & Emaar Standards:**
-      *   All personnel must wear a hard hat (color-coded by role if possible) at all times on site.
-      *   High-visibility vests are mandatory for all workers.
-      *   Safety footwear (steel-toed boots) is required.
-      *   Gloves appropriate for the task must be worn.
-      *   Safety glasses are required, especially during cutting, grinding, or drilling operations.
-
-  2.  **Scaffolding - Al Dar & DAMAC Client Rules:**
-      *   All scaffolding must have a green 'Safe to Use' tag, visually verified and dated within the last 7 days. Red tags ('Unsafe') must be strictly observed.
-      *   Guardrails (top-rail, mid-rail) and toeboards must be present on all working platforms above 2 meters.
-      *   Full planking is required on all working levels. No gaps are permitted between planks.
-      *   Safe access (e.g., an integrated ladder) must be provided.
-
-  **Your Task:**
-  Analyze the following image and identify any violations **based strictly on the regulations provided above**. For each violation, state the rule that was broken. If there are no violations, state that clearly.
-
-  Image: {{media url=imageDataUri}}
-
-  Output the results as a JSON object.
-`,
-});
 
 const detectSafetyViolationsFlow = ai.defineFlow(
   {
@@ -71,7 +37,54 @@ const detectSafetyViolationsFlow = ai.defineFlow(
     outputSchema: DetectSafetyViolationsOutputSchema,
   },
   async input => {
-    const {output} = await detectSafetyViolationsPrompt(input);
+    // URL to the raw text file in Firebase Storage. 
+    // This URL must be publicly accessible.
+    const safetyRulesUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-7211011860-c8b46.appspot.com/o/safety_rules.txt?alt=media';
+
+    let safetyRules = '';
+    try {
+      const response = await fetch(safetyRulesUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch safety rules: ${response.statusText}`);
+      }
+      safetyRules = await response.text();
+    } catch (error) {
+      console.error("Error fetching safety rules:", error);
+      // Fallback to a default set of rules if fetching fails
+      safetyRules = 'Default Safety Rule: All personnel must wear hard hats.';
+    }
+
+    const prompt = `You are an AI safety inspector for construction sites in the UAE. Your analysis must be grounded in the provided safety regulations.
+
+      **Safety Regulations (Source of Truth):**
+      ---
+      ${safetyRules}
+      ---
+
+      **Your Task:**
+      Analyze the following image and identify any violations **based strictly on the regulations provided above**. For each violation, state the rule that was broken. If there are no violations, state that clearly.
+
+      Image: {{media url=imageDataUri}}
+
+      Output the results as a JSON object.
+    `;
+
+    const {output} = await ai.generate({
+        prompt: prompt,
+        input: input,
+        model: 'googleai/gemini-2.5-flash',
+        output: {
+            schema: DetectSafetyViolationsOutputSchema,
+        }
+    });
+
     return output!;
   }
 );
+
+
+export async function detectSafetyViolations(
+  input: DetectSafetyViolationsInput
+): Promise<DetectSafetyViolationsOutput> {
+  return detectSafetyViolationsFlow(input);
+}
