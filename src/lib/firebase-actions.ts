@@ -526,7 +526,6 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
       const activityInfo = activityMap.get(subActivity.activityCode);
       if (!activityInfo) continue;
 
-      // Generate a new ID for the sub-activity first
       const subActivityRef = doc(collection(db, activityInfo.ref.path, 'subactivities'));
       
       batch.set(subActivityRef, {
@@ -540,7 +539,6 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
           updatedAt: serverTimestamp(),
       });
 
-      // Now use the generated ID for the summary document
       const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
       batch.set(subActivitySummaryRef, {
           totalWork: subActivity.totalWork,
@@ -550,7 +548,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
           workGradeB: 0,
           workGradeC: 0,
           unit: subActivity.unit,
-          activityName: activityInfo.name, // Use the correct name
+          activityName: activityInfo.name, 
           subActivityName: subActivity.name,
           BoQ: subActivity.BoQ,
           updatedAt: serverTimestamp(),
