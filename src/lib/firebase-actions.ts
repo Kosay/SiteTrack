@@ -19,7 +19,7 @@ import {
   DocumentSnapshot,
 } from 'firebase/firestore';
 import { format } from 'date-fns';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary, SubActivitySummary } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -464,7 +464,9 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   }
 
   // 4. Add Activities and Sub-activities
-  const activityRefs: Map<string, any> = new Map();
+  const activityRefs: Map<string, DocumentReference> = new Map();
+  const subActivityRefs: Map<string, DocumentReference> = new Map();
+
   for (const activity of formData.activities) {
     const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
     activityRefs.set(activity.code, activityRef);
@@ -478,12 +480,11 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
-  }
 
-  for (const subActivity of formData.subActivities || []) {
-    const parentActivityRef = activityRefs.get(subActivity.activityCode);
-    if(parentActivityRef) {
-        const subActivityRef = doc(collection(db, parentActivityRef.path, 'subactivities'));
+    // Create detailed summary for each sub-activity
+    for (const subActivity of formData.subActivities.filter(sa => sa.activityCode === activity.code)) {
+        const subActivityRef = doc(collection(db, activityRef.path, 'subactivities'));
+        subActivityRefs.set(subActivity.BoQ, subActivityRef);
         batch.set(subActivityRef, {
             BoQ: subActivity.BoQ,
             name: subActivity.name,
@@ -494,8 +495,21 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
-    } else {
-        console.warn(`Could not find parent activity with code: ${subActivity.activityCode} for sub-activity: ${subActivity.name}`);
+
+        const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary/${subActivityRef.id}`);
+        batch.set(subActivitySummaryRef, {
+            totalWork: subActivity.totalWork,
+            doneWork: 0,
+            pendingWork: 0,
+            workGradeA: 0,
+            workGradeB: 0,
+            workGradeC: 0,
+            unit: subActivity.unit,
+            activityName: activity.name,
+            subActivityName: subActivity.name,
+            BoQ: subActivity.BoQ,
+            updatedAt: serverTimestamp(),
+        });
     }
   }
     
@@ -519,24 +533,21 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
     const { projectId, items, reportDate, ...reportHeader } = data;
     
     await runTransaction(db, async (transaction) => {
-        // --- 1. ALL READS FIRST ---
-        // We only read sub-activities to update their pending work.
-        // The dashboard summary is no longer updated on creation, only on approval.
-        const subActivityRefs = items.map(item => 
-            doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`)
+        // --- 1. READS ---
+        const subActivitySummaryRefs = items.map(item => 
+            doc(db, `projects/${projectId}/dashboards/summary/${item.subActivityId}`)
         );
-        const subActivitySnapshots = await Promise.all(subActivityRefs.map(ref => transaction.get(ref)));
+        const subActivitySummarySnapshots = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
         
         // --- 2. LOGIC & VALIDATION ---
-        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-
-        for (let i = 0; i < subActivitySnapshots.length; i++) {
-            if (!subActivitySnapshots[i].exists()) {
-                throw new Error(`SubActivity with ID ${items[i].subActivityId} not found.`);
+        for (let i = 0; i < subActivitySummarySnapshots.length; i++) {
+            if (!subActivitySummarySnapshots[i].exists()) {
+                throw new Error(`SubActivitySummary for ID ${items[i].subActivityId} not found. Project may need re-initialization.`);
             }
         }
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
         
-        // --- 3. ALL WRITES LAST ---
+        // --- 3. WRITES ---
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
 
@@ -552,33 +563,23 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
-            const subActivityRef = subActivityRefs[i];
-            const { zoneName, ...itemData } = item;
-            
             const itemRef = doc(collection(db, reportRef.path, 'items'));
+            const { zoneName, ...itemData } = item;
             transaction.set(itemRef, itemData);
             
-            const subActivityDoc = subActivitySnapshots[i];
-            const currentSubActivity = subActivityDoc.data() as SubActivity;
-
-            const updatePayload: any = {
+            // Update the detailed sub-activity summary
+            const summaryRef = subActivitySummaryRefs[i];
+            transaction.update(summaryRef, {
                 pendingWork: increment(item.quantity),
-                updatedAt: serverTimestamp(),
-            };
-
-            if (zoneName) {
-                const zoneKey = `progressByZone.${zoneName}.pendingWork`;
-                updatePayload[zoneKey] = increment(item.quantity);
-            }
-            
-            transaction.update(subActivityRef, updatePayload);
+                updatedAt: serverTimestamp()
+            });
         }
     });
 }
 
 /**
  * Approves a daily report and updates all relevant progress metrics.
- * This is a placeholder function and is not yet used in the UI.
+ * This is a conceptual function that contains the logic for approvals.
  */
 export async function approveDailyReport(projectId: string, reportId: string, grade: 'A' | 'B' | 'C') {
     const db = getDb();
@@ -588,64 +589,70 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         const reportRef = doc(db, `projects/${projectId}/daily_reports/${reportId}`);
         const reportSnap = await transaction.get(reportRef);
 
-        if (!reportSnap.exists()) {
-            throw new Error(`Report with ID ${reportId} not found.`);
+        if (!reportSnap.exists() || reportSnap.data().status === 'Approved') {
+            // Either report doesn't exist or has already been approved.
+            return;
         }
-        const reportData = reportSnap.data() as DailyReport;
 
         const itemsQuery = collection(db, reportRef.path, 'items');
         const itemsSnap = await transaction.get(itemsQuery);
-        const reportItems = itemsSnap.docs.map(d => ({...d.data(), id: d.id} as ReportItem & {id: string}));
-
-        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
-        const summarySnap = await transaction.get(summaryRef);
+        const reportItems = itemsSnap.docs.map(d => d.data() as ReportItem);
         
-        const subActivityRefs = reportItems.map(item => doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`));
-        const subActivitySnaps = await Promise.all(subActivityRefs.map(ref => transaction.get(ref)));
+        // Get all related summary documents
+        const subActivitySummaryRefs = reportItems.map(item => doc(db, `projects/${projectId}/dashboards/summary/${item.subActivityId}`));
+        const subActivitySummarySnaps = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
 
-        // --- 2. LOGIC & VALIDATION ---
-        if (reportData.status === 'Approved') {
-            // Potentially throw an error or handle re-approval logic
-            return; 
-        }
+        const overallSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        const overallSummarySnap = await transaction.get(overallSummaryRef);
 
-        let totalProgressSumChange = 0;
+        // --- 2. LOGIC ---
+        let totalProgressChange = 0;
 
-        for(let i = 0; i < reportItems.length; i++) {
+        for (let i = 0; i < reportItems.length; i++) {
             const item = reportItems[i];
-            const subActivitySnap = subActivitySnaps[i];
-            
-            if (!subActivitySnap.exists()) continue;
+            const summarySnap = subActivitySummarySnaps[i];
 
-            const oldSubActivityData = subActivitySnap.data() as SubActivity;
-            const oldDoneWork = oldSubActivityData.doneWork || 0;
-            const oldProgress = oldSubActivityData.totalWork > 0 ? (oldDoneWork / oldSubActivityData.totalWork) * 100 : 0;
+            if (!summarySnap.exists()) continue;
+
+            const summaryData = summarySnap.data() as SubActivitySummary;
             
-            const newDoneWork = oldDoneWork + item.quantity;
-            const newProgress = oldSubActivityData.totalWork > 0 ? (newDoneWork / oldSubActivityData.totalWork) * 100 : 0;
-            
-            totalProgressSumChange += (newProgress - oldProgress);
+            // Calculate progress change for this item
+            const oldProgress = summaryData.totalWork > 0 ? (summaryData.doneWork / summaryData.totalWork) * 100 : 0;
+            const newDoneWork = (summaryData.doneWork || 0) + item.quantity;
+            const newProgress = summaryData.totalWork > 0 ? (newDoneWork / summaryData.totalWork) * 100 : 0;
+
+            totalProgressChange += (newProgress - oldProgress);
         }
 
         // --- 3. WRITES ---
+        // Mark report as approved
         transaction.update(reportRef, { status: 'Approved', updatedAt: serverTimestamp() });
-        
+
+        // Update each sub-activity summary
         for(let i = 0; i < reportItems.length; i++) {
             const item = reportItems[i];
-            const subActivityRef = subActivityRefs[i];
-            transaction.update(subActivityRef, {
+            const summaryRef = subActivitySummaryRefs[i];
+            if (!subActivitySummarySnaps[i].exists()) continue;
+            
+            const gradeField = `workGrade${grade}`;
+            transaction.update(summaryRef, {
                 pendingWork: increment(-item.quantity),
                 doneWork: increment(item.quantity),
-                [`workGrade${grade}`]: increment(item.quantity),
+                [gradeField]: increment(item.quantity),
                 updatedAt: serverTimestamp()
             });
         }
         
-        if (summarySnap.exists()) {
-            const newOverallProgress = ((summarySnap.data().totalProgressSum + totalProgressSumChange) / summarySnap.data().subActivityCount);
-            transaction.update(summaryRef, {
-                totalProgressSum: increment(totalProgressSumChange),
+        // Update the single top-level dashboard summary
+        if (overallSummarySnap.exists()) {
+            const overallSummaryData = overallSummarySnap.data() as ProjectDashboardSummary;
+            const newTotalProgressSum = (overallSummaryData.totalProgressSum || 0) + totalProgressChange;
+            const newOverallProgress = overallSummaryData.subActivityCount > 0 ? newTotalProgressSum / overallSummaryData.subActivityCount : 0;
+
+            transaction.update(overallSummaryRef, {
+                totalProgressSum: newTotalProgressSum,
                 overallProgress: newOverallProgress,
+                lastReportAt: serverTimestamp(), // Use approval time as last report time
                 updatedAt: serverTimestamp()
             });
         }

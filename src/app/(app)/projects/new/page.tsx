@@ -16,7 +16,7 @@ import { ArrowLeft, ArrowRight, LoaderCircle, PlusCircle, Trash2, User as UserIc
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Company, User, Unit, Zone, Activity, SubActivity } from '@/lib/types';
+import type { Company, User, Unit, Zone, Activity, SubActivity, SubActivitySummary } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -972,7 +972,7 @@ export default function NewProjectWizard() {
   const unitsCollection = useMemoFirebase(() => collection(firestore, 'units'), [firestore]);
   const { data: units, isLoading: isLoadingUnits } = useCollection<Unit>(unitsCollection);
 
-  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u])), [users]);
+  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
   const companyMap = useMemo(() => new Map(companies?.map(c => [c.id, c.name])), [companies]);
 
   const steps = [
@@ -1153,8 +1153,8 @@ export default function NewProjectWizard() {
     
     setIsSubmitting(true);
     try {
-        if (!userMap) throw new Error("User data is not loaded yet.");
-        await createProjectFromWizard(firestore, formData, { userMap });
+        const userMapForAction = new Map(users?.map(u => [u.id, u]) || []);
+        await createProjectFromWizard(firestore, formData, { userMap: userMapForAction });
         toast({ title: 'Project Created!', description: `${formData.name} has been successfully created.`});
         router.push('/projects');
     } catch (error: any) {

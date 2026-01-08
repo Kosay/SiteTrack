@@ -1,5 +1,6 @@
 
 
+
 // Type definitions based on the new docs/backend.json
 
 // Top-level entities
@@ -293,6 +294,22 @@ export interface ProjectDashboardSummary {
     lastReportAt: any | null; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
 }
+
+
+export interface SubActivitySummary {
+    totalWork: number;
+    doneWork: number;
+    pendingWork: number;
+    workGradeA: number;
+    workGradeB: number;
+    workGradeC: number;
+    unit: string;
+    activityName: string;
+    subActivityName: string;
+    BoQ: string;
+    updatedAt: any; // Firestore Timestamp
+}
+
 
 // Legacy types, kept for compatibility if needed. Will be removed later.
 export interface UserProfile {

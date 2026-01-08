@@ -258,14 +258,34 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Project Dashboard Summary",
       "type": "object",
-      "description": "A rollup document for high-level project progress metrics.",
+      "description": "A high-level rollup document for overall project progress, tracking the average completion across all sub-activities.",
       "properties": {
         "subActivityCount": { "type": "number" },
-        "totalProgressSum": { "type": "number" },
-        "overallProgress": { "type": "number" },
+        "totalProgressSum": { "type": "number", "description": "The sum of all individual sub-activity completion percentages. E.g., 50% + 10% = 60.0" },
+        "overallProgress": { "type": "number", "description": "The true average progress: totalProgressSum / subActivityCount." },
         "lastReportAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+     "SubActivitySummary": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Sub-Activity Summary",
+      "type": "object",
+      "description": "A detailed, real-time summary of a single sub-activity's progress.",
+      "properties": {
+        "totalWork": { "type": "number" },
+        "doneWork": { "type": "number" },
+        "pendingWork": { "type": "number" },
+        "workGradeA": { "type": "number" },
+        "workGradeB": { "type": "number" },
+        "workGradeC": { "type": "number" },
+        "unit": { "type": "string" },
+        "activityName": { "type": "string" },
+        "subActivityName": { "type": "string" },
+        "BoQ": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["totalWork", "doneWork", "pendingWork", "unit", "activityName", "subActivityName", "BoQ"]
     },
      "Invitation": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -306,6 +326,7 @@
     "/projects/{projectId}": { "schema": { "$ref": "#/entities/Project" } },
     "/projects/{projectId}/members/{userId}": { "schema": { "$ref": "#/entities/ProjectMember" } },
     "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } },
+    "/projects/{projectId}/dashboards/summary/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivitySummary" } },
     "/equipment/{equipmentId}": { "schema": { "$ref": "#/entities/Equipment" } },
     "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
     "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },
