@@ -539,6 +539,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
           updatedAt: serverTimestamp(),
       });
 
+      // Use the subActivityRef.id to create the summary document
       const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
       batch.set(subActivitySummaryRef, {
           totalWork: subActivity.totalWork,
