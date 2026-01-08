@@ -15,6 +15,8 @@ import {
   writeBatch,
   runTransaction,
   increment,
+  DocumentReference,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary } from './types';
@@ -410,10 +412,9 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   // 1.5 Initialize ProjectDashboardSummary
   const summaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary`);
   const summaryData: ProjectDashboardSummary = {
-    totalWork: totalWork,
-    doneWork: 0,
-    totalPendingWork: 0,
-    progressPercent: 0,
+    subActivityCount: formData.subActivities?.length || 0,
+    totalProgressSum: 0,
+    overallProgress: 0,
     lastReportAt: null,
     updatedAt: serverTimestamp(),
   };
@@ -519,9 +520,8 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
     
     await runTransaction(db, async (transaction) => {
         // --- 1. ALL READS FIRST ---
-        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
-        const summarySnapshot = await transaction.get(summaryRef);
-
+        // We only read sub-activities to update their pending work.
+        // The dashboard summary is no longer updated on creation, only on approval.
         const subActivityRefs = items.map(item => 
             doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`)
         );
@@ -573,24 +573,81 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
             
             transaction.update(subActivityRef, updatePayload);
         }
+    });
+}
+
+/**
+ * Approves a daily report and updates all relevant progress metrics.
+ * This is a placeholder function and is not yet used in the UI.
+ */
+export async function approveDailyReport(projectId: string, reportId: string, grade: 'A' | 'B' | 'C') {
+    const db = getDb();
+    
+    await runTransaction(db, async (transaction) => {
+        // --- 1. READS ---
+        const reportRef = doc(db, `projects/${projectId}/daily_reports/${reportId}`);
+        const reportSnap = await transaction.get(reportRef);
+
+        if (!reportSnap.exists()) {
+            throw new Error(`Report with ID ${reportId} not found.`);
+        }
+        const reportData = reportSnap.data() as DailyReport;
+
+        const itemsQuery = collection(db, reportRef.path, 'items');
+        const itemsSnap = await transaction.get(itemsQuery);
+        const reportItems = itemsSnap.docs.map(d => ({...d.data(), id: d.id} as ReportItem & {id: string}));
+
+        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        const summarySnap = await transaction.get(summaryRef);
         
-        if (summarySnapshot.exists()) {
-             transaction.update(summaryRef, {
-                totalPendingWork: increment(totalQuantity),
-                lastReportAt: reportDate,
-                updatedAt: serverTimestamp(),
+        const subActivityRefs = reportItems.map(item => doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`));
+        const subActivitySnaps = await Promise.all(subActivityRefs.map(ref => transaction.get(ref)));
+
+        // --- 2. LOGIC & VALIDATION ---
+        if (reportData.status === 'Approved') {
+            // Potentially throw an error or handle re-approval logic
+            return; 
+        }
+
+        let totalProgressSumChange = 0;
+
+        for(let i = 0; i < reportItems.length; i++) {
+            const item = reportItems[i];
+            const subActivitySnap = subActivitySnaps[i];
+            
+            if (!subActivitySnap.exists()) continue;
+
+            const oldSubActivityData = subActivitySnap.data() as SubActivity;
+            const oldDoneWork = oldSubActivityData.doneWork || 0;
+            const oldProgress = oldSubActivityData.totalWork > 0 ? (oldDoneWork / oldSubActivityData.totalWork) * 100 : 0;
+            
+            const newDoneWork = oldDoneWork + item.quantity;
+            const newProgress = oldSubActivityData.totalWork > 0 ? (newDoneWork / oldSubActivityData.totalWork) * 100 : 0;
+            
+            totalProgressSumChange += (newProgress - oldProgress);
+        }
+
+        // --- 3. WRITES ---
+        transaction.update(reportRef, { status: 'Approved', updatedAt: serverTimestamp() });
+        
+        for(let i = 0; i < reportItems.length; i++) {
+            const item = reportItems[i];
+            const subActivityRef = subActivityRefs[i];
+            transaction.update(subActivityRef, {
+                pendingWork: increment(-item.quantity),
+                doneWork: increment(item.quantity),
+                [`workGrade${grade}`]: increment(item.quantity),
+                updatedAt: serverTimestamp()
             });
-        } else {
-            // Document doesn't exist, so create it.
-            const newSummary: ProjectDashboardSummary = {
-                totalWork: 0, // This should be calculated differently, maybe during project creation
-                doneWork: 0,
-                totalPendingWork: totalQuantity,
-                progressPercent: 0,
-                lastReportAt: reportDate,
-                updatedAt: serverTimestamp(),
-            };
-            transaction.set(summaryRef, newSummary);
+        }
+        
+        if (summarySnap.exists()) {
+            const newOverallProgress = ((summarySnap.data().totalProgressSum + totalProgressSumChange) / summarySnap.data().subActivityCount);
+            transaction.update(summaryRef, {
+                totalProgressSum: increment(totalProgressSumChange),
+                overallProgress: newOverallProgress,
+                updatedAt: serverTimestamp()
+            });
         }
     });
 }

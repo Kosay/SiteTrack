@@ -51,7 +51,7 @@ export default function ProjectDashboardPage() {
       <div className="text-center">
         <h2 className="text-2xl font-bold">Project Data Not Found</h2>
         <p className="text-muted-foreground">
-          The project or its summary data could not be loaded.
+          The project or its summary data could not be loaded. This might be an older project created before summaries were tracked.
         </p>
         <Button asChild className="mt-4">
           <Link href="/projects">Go Back</Link>
@@ -60,9 +60,7 @@ export default function ProjectDashboardPage() {
     );
   }
   
-  const progressPercent = summary.totalWork > 0 ? (summary.doneWork / summary.totalWork) * 100 : 0;
-  const pendingPercent = summary.totalWork > 0 ? (summary.totalPendingWork / summary.totalWork) * 100 : 0;
-
+  const progressPercent = summary.overallProgress || 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,7 +83,7 @@ export default function ProjectDashboardPage() {
         <CardHeader>
           <CardTitle>Progress Summary</CardTitle>
           <CardDescription>
-            Last report on:{' '}
+            Last report submitted on:{' '}
             {summary.lastReportAt
               ? format(summary.lastReportAt.toDate(), 'PPP p')
               : 'N/A'}
@@ -99,36 +97,25 @@ export default function ProjectDashboardPage() {
             </div>
             <Progress value={progressPercent} className="h-4" />
              <p className="text-xs text-muted-foreground">
-                {summary.doneWork.toLocaleString()} / {summary.totalWork.toLocaleString()} units completed.
+                Based on the weighted average progress of {summary.subActivityCount} sub-activities.
             </p>
           </div>
           
-           <div className="space-y-2">
-            <div className="flex justify-between text-sm font-medium text-amber-600">
-              <span>Pending Review</span>
-              <span>{pendingPercent.toFixed(2)}%</span>
-            </div>
-            <Progress value={pendingPercent} className="h-2 [&>div]:bg-amber-500" />
-            <p className="text-xs text-muted-foreground">
-                {summary.totalPendingWork.toLocaleString()} units are awaiting consultant approval.
-            </p>
-          </div>
-
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4 border-t">
              <div>
-                <p className="text-2xl font-bold">{summary.totalWork.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Total Work</p>
+                <p className="text-2xl font-bold">{summary.subActivityCount}</p>
+                <p className="text-sm text-muted-foreground">Total Sub-Activities</p>
             </div>
              <div>
-                <p className="text-2xl font-bold text-green-600">{summary.doneWork.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Work Done</p>
+                <p className="text-2xl font-bold text-green-600">{summary.totalProgressSum.toFixed(2)}%</p>
+                <p className="text-sm text-muted-foreground">Sum of Percentages</p>
             </div>
              <div>
-                <p className="text-2xl font-bold text-amber-600">{summary.totalPendingWork.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Pending Work</p>
+                <p className="text-2xl font-bold text-blue-600">{progressPercent.toFixed(2)}%</p>
+                <p className="text-sm text-muted-foreground">Overall Average</p>
             </div>
              <div>
-                <p className="text-2xl font-bold text-red-600">{(summary.totalWork - summary.doneWork - summary.totalPendingWork).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-red-600">{ (100 - progressPercent).toFixed(2) }%</p>
                 <p className="text-sm text-muted-foreground">Remaining</p>
             </div>
           </div>

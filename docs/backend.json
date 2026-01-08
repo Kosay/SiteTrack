@@ -260,10 +260,9 @@
       "type": "object",
       "description": "A rollup document for high-level project progress metrics.",
       "properties": {
-        "totalWork": { "type": "number" },
-        "doneWork": { "type": "number" },
-        "totalPendingWork": { "type": "number" },
-        "progressPercent": { "type": "number" },
+        "subActivityCount": { "type": "number" },
+        "totalProgressSum": { "type": "number" },
+        "overallProgress": { "type": "number" },
         "lastReportAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }

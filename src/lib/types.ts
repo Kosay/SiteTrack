@@ -287,10 +287,9 @@ export interface CompanyDashboardSummary {
 }
 
 export interface ProjectDashboardSummary {
-    totalWork: number;
-    doneWork: number;
-    totalPendingWork: number;
-    progressPercent: number;
+    subActivityCount: number;
+    totalProgressSum: number;
+    overallProgress: number;
     lastReportAt: any | null; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
 }
