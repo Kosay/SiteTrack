@@ -35,6 +35,7 @@ export interface Project {
     name: string;
     directorId: string;
     pmId: string;
+    pmName?: string;
     status: "active" | "closed";
     totalWork: number;
     doneWork: number;
@@ -213,6 +214,10 @@ export interface ProgressReport {
     inspectionDate?: any; // Firestore Timestamp
     inspectorRemarks?: string;
     wirUserId?: string;
+    generalForeman?: string;
+    foreman?: string;
+    road?: string;
+    subcontractor?: string;
 }
 
 // Denormalized / Dashboard entities

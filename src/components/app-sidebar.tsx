@@ -15,6 +15,7 @@ import {
   Database,
   ListChecks,
   Mail,
+  Send,
 } from 'lucide-react';
 
 import {
@@ -31,6 +32,7 @@ import { UserButton } from './user-button';
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { label: 'Progress Log', href: '/progress', icon: ClipboardPlus },
+  { label: 'Daily Progress', href: '/daily-progress', icon: Send },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },

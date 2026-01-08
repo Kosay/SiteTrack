@@ -15,7 +15,7 @@ import {
   WriteBatch,
   writeBatch,
 } from 'firebase/firestore';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, ProgressReport } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -378,7 +378,7 @@ export async function deleteSubActivity(projectId: string, activityId: string, s
 }
 
 
-export async function createProjectFromWizard(db: Firestore, formData: any, collections: { users: User[], companies: Company[] }): Promise<void> {
+export async function createProjectFromWizard(db: Firestore, formData: any, collections: { users: SiteUser[], companies: Company[] }): Promise<void> {
   const { users, companies } = collections;
   const userMap = new Map(users.map(u => [u.id, u]));
 
@@ -391,6 +391,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     companyId: formData.companyId,
     directorId: formData.directorId,
     pmId: formData.pmId,
+    pmName: userMap.get(formData.pmId)?.name,
     status: formData.status,
     address: formData.address,
     googleMapsUrl: formData.googleMapsUrl,
@@ -477,10 +478,47 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
-        // Here you could also add zone quantities if needed, similar to other batch writes
     }
   }
     
-  // Commit the batch
   await batch.commit();
+}
+
+
+interface CreateProgressReportData {
+    projectId: string;
+    activityId: string;
+    subActivityId: string;
+    cmId: string;
+    zoneId: string;
+    quantity: number;
+    generalForeman: string;
+    foreman: string;
+    road?: string;
+    subcontractor?: string;
+    remarks?: string;
+}
+
+export async function createProgressReport(
+    user: User,
+    project: Project,
+    data: CreateProgressReportData
+): Promise<void> {
+    const db = getDb();
+    const { projectId, ...reportData } = data;
+
+    const reportRef = doc(collection(db, `projects/${projectId}/progress_reports`));
+
+    const newReport: Omit<ProgressReport, 'id'> = {
+        ...reportData,
+        companyId: project.companyId,
+        engineerId: user.id,
+        date: new Date(),
+        diaryDate: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+        status: 'Pending',
+        inspectionStatus: 'Pending',
+        createdAt: serverTimestamp(),
+    };
+
+    await setDoc(reportRef, newReport);
 }

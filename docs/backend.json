@@ -65,6 +65,7 @@
         "name": { "type": "string" },
         "directorId": { "type": "string" },
         "pmId": { "type": "string" },
+        "pmName": { "type": "string", "description": "Denormalized project manager name for fast display."},
         "status": { "type": "string", "enum": ["active", "closed"] },
         "totalWork": { "type": "number" },
         "doneWork": { "type": "number" },
@@ -190,7 +191,11 @@
         "gradeCQuantity": { "type": "number" },
         "inspectionDate": { "type": "string", "format": "date-time" },
         "inspectorRemarks": { "type": "string" },
-        "wirUserId": { "type": "string" }
+        "wirUserId": { "type": "string" },
+        "generalForeman": { "type": "string"},
+        "foreman": { "type": "string"},
+        "road": { "type": "string"},
+        "subcontractor": { "type": "string"}
       },
       "required": ["companyId", "projectId", "activityId", "subActivityId", "zoneId", "engineerId", "cmId", "quantity", "date", "diaryDate", "status"]
     },
