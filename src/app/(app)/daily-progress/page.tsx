@@ -99,7 +99,8 @@ export default function DailyProgressPage() {
     setSelectedActivity(null);
     setSelectedSubActivity(null);
     setSelectedZone(null);
-  }, [selectedProject]);
+    setSubcontractor(companyName || '');
+  }, [selectedProject, companyName]);
 
   useEffect(() => {
     setSelectedSubActivity(null);
@@ -314,7 +315,7 @@ export default function DailyProgressPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Company / Sub-contractor</Label>
-                            <Input value={subcontractor} onChange={(e) => setSubcontractor(e.target.value)} placeholder="Enter company name" defaultValue={companyName} />
+                            <Input value={subcontractor} onChange={(e) => setSubcontractor(e.target.value)} placeholder="Enter company name" />
                         </div>
                      </div>
                      <div className="space-y-2">
@@ -371,5 +372,3 @@ export default function DailyProgressPage() {
     </div>
   );
 }
-
-    
