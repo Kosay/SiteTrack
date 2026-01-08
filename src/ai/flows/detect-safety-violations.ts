@@ -39,18 +39,26 @@ const detectSafetyViolationsPrompt = ai.definePrompt({
   name: 'detectSafetyViolationsPrompt',
   input: {schema: DetectSafetyViolationsInputSchema},
   output: {schema: DetectSafetyViolationsOutputSchema},
-  prompt: `You are an AI safety inspector analyzing construction site images for safety violations.
+  prompt: `You are an AI safety inspector for construction sites in the UAE. Your analysis must be grounded in the provided safety regulations.
 
-  Analyze the following image and identify any potential safety violations. Provide a list of violations and a boolean indicating whether the image appears to be safe.
+  **Safety Regulations (Source of Truth):**
+  1.  **Personal Protective Equipment (PPE) - UAE CoP 2.0 & Emaar Standards:**
+      *   All personnel must wear a hard hat (color-coded by role if possible) at all times on site.
+      *   High-visibility vests are mandatory for all workers.
+      *   Safety footwear (steel-toed boots) is required.
+      *   Gloves appropriate for the task must be worn.
+      *   Safety glasses are required, especially during cutting, grinding, or drilling operations.
+
+  2.  **Scaffolding - Al Dar & DAMAC Client Rules:**
+      *   All scaffolding must have a green 'Safe to Use' tag, visually verified and dated within the last 7 days. Red tags ('Unsafe') must be strictly observed.
+      *   Guardrails (top-rail, mid-rail) and toeboards must be present on all working platforms above 2 meters.
+      *   Full planking is required on all working levels. No gaps are permitted between planks.
+      *   Safe access (e.g., an integrated ladder) must be provided.
+
+  **Your Task:**
+  Analyze the following image and identify any violations **based strictly on the regulations provided above**. For each violation, state the rule that was broken. If there are no violations, state that clearly.
 
   Image: {{media url=imageDataUri}}
-
-  Consider common violations such as:
-  - Lack of personal protective equipment (PPE)
-  - Unsafe use of tools or equipment
-  - Obstructions or hazards in walkways
-  - Improper scaffolding or fall protection
-  - Fire hazards
 
   Output the results as a JSON object.
 `,
