@@ -378,10 +378,9 @@ export async function deleteSubActivity(projectId: string, activityId: string, s
 }
 
 
-export async function createProjectFromWizard(db: Firestore, formData: any, collections: { users: SiteUser[], companies: Company[] }): Promise<void> {
-  const { users, companies } = collections;
-  const userMap = new Map(users.map(u => [u.id, u]));
-
+export async function createProjectFromWizard(db: Firestore, formData: any, collections: { userMap: Map<string, User> }): Promise<void> {
+  const { userMap } = collections;
+  
   const batch = writeBatch(db);
 
   // 1. Create Project
@@ -391,13 +390,13 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     companyId: formData.companyId,
     directorId: formData.directorId,
     pmId: formData.pmId,
-    pmName: userMap.get(formData.pmId)?.name,
+    pmName: userMap.get(formData.pmId)?.name, // This is the fix
     status: formData.status,
     address: formData.address,
     googleMapsUrl: formData.googleMapsUrl,
     kmlUrl: formData.kmlUrl,
     archived: false,
-    totalWork: formData.subActivities.reduce((acc, sa) => acc + (sa.totalWork || 0), 0),
+    totalWork: (formData.subActivities || []).reduce((acc, sa) => acc + (sa.totalWork || 0), 0),
     doneWork: 0,
     approvedWork: 0,
     createdAt: serverTimestamp(),
@@ -442,7 +441,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
         updatedAt: serverTimestamp() 
       };
       // Only add mapSvg if it has a value
-      if (zone.mapSvg) {
+      if (zone.mapSvg && zone.mapSvg.trim() !== '') {
         zoneData.mapSvg = zone.mapSvg;
       }
       batch.set(zoneRef, zoneData);
@@ -475,9 +474,12 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
             description: subActivity.description,
             unit: subActivity.unit,
             totalWork: subActivity.totalWork,
+            zoneQuantities: subActivity.zoneQuantities,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+    } else {
+        console.warn(`Could not find parent activity with code: ${subActivity.activityCode} for sub-activity: ${subActivity.name}`);
     }
   }
     

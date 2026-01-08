@@ -972,7 +972,7 @@ export default function NewProjectWizard() {
   const unitsCollection = useMemoFirebase(() => collection(firestore, 'units'), [firestore]);
   const { data: units, isLoading: isLoadingUnits } = useCollection<Unit>(unitsCollection);
 
-  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u.name])), [users]);
+  const userMap = useMemo(() => new Map(users?.map(u => [u.id, u])), [users]);
   const companyMap = useMemo(() => new Map(companies?.map(c => [c.id, c.name])), [companies]);
 
   const steps = [
@@ -1022,7 +1022,12 @@ export default function NewProjectWizard() {
     const activityMap = new Map(activities.map((act) => [act.code, act]));
     const zoneNames = zones.map(zone => zone.name);
 
-    const dataToExport = subActivities.map(sa => {
+    const headers = [
+        'ActivityCode', 'ActivityName', 'BoQ', 'SubActivityName', 
+        'Description', 'Unit', 'TotalWork', ...zoneNames
+    ];
+
+    const dataToExport = (subActivities || []).map(sa => {
         const activity = activityMap.get(sa.activityCode);
         const row: Record<string, any> = {
             'ActivityCode': activity?.code || sa.activityCode,
@@ -1041,13 +1046,12 @@ export default function NewProjectWizard() {
     
     if (dataToExport.length === 0) {
         // Create a template with headers if there are no sub-activities
-        const headers = ['ActivityCode', 'ActivityName', 'BoQ', 'SubActivityName', 'Description', 'Unit', 'TotalWork', ...zoneNames];
-        const templateRow = activities.map(act => ({'ActivityCode': act.code, 'ActivityName': act.name}));
-        const csv = Papa.unparse(templateRow.length > 0 ? templateRow : [[]], {header: true, columns: headers});
+        const templateRow = activities.length > 0 ? activities.map(act => ({'ActivityCode': act.code, 'ActivityName': act.name})) : [{}];
+        const csv = Papa.unparse(templateRow, {header: true, columns: headers});
         triggerDownload(csv, 'boq_template.csv');
         toast({ title: "Template Exported", description: "A template CSV has been downloaded." });
     } else {
-        const csv = Papa.unparse(dataToExport);
+        const csv = Papa.unparse(dataToExport, { header: true, columns: headers});
         triggerDownload(csv, 'boq_export.csv');
         toast({ title: "Export Successful", description: `${dataToExport.length} rows exported.` });
     }
@@ -1149,7 +1153,8 @@ export default function NewProjectWizard() {
     
     setIsSubmitting(true);
     try {
-        await createProjectFromWizard(firestore, formData, { users, companies });
+        if (!userMap) throw new Error("User data is not loaded yet.");
+        await createProjectFromWizard(firestore, formData, { userMap });
         toast({ title: 'Project Created!', description: `${formData.name} has been successfully created.`});
         router.push('/projects');
     } catch (error: any) {
