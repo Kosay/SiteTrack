@@ -518,10 +518,28 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
     const { projectId, items, reportDate, ...reportHeader } = data;
     
     await runTransaction(db, async (transaction) => {
-        // 1. Create the main DailyReport document
+        // --- 1. ALL READS FIRST ---
+        // Pre-fetch all sub-activity documents that will be updated.
+        const subActivityRefs = items.map(item => 
+            doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`)
+        );
+        const subActivitySnapshots = await Promise.all(subActivityRefs.map(ref => transaction.get(ref)));
+        
+        // --- 2. LOGIC & VALIDATION ---
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+        // Check for existence of all sub-activities after reading.
+        for (let i = 0; i < subActivitySnapshots.length; i++) {
+            if (!subActivitySnapshots[i].exists()) {
+                throw new Error(`SubActivity with ID ${items[i].subActivityId} not found.`);
+            }
+        }
+        
+        // --- 3. ALL WRITES LAST ---
+
+        // Create the main DailyReport document
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
-        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
         const newReport: Omit<DailyReport, 'id'> = {
             ...reportHeader,
@@ -533,29 +551,27 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         };
         transaction.set(reportRef, newReport);
 
-        // 2. Create each report item and update aggregate fields
-        for (const item of items) {
+        // Create each report item and update its corresponding aggregate fields
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const subActivityRef = subActivityRefs[i];
+            const subActivityDoc = subActivitySnapshots[i];
+
+            // Create the ReportItem document
             const { zoneName, ...itemData } = item;
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, itemData);
             
-            // 3. Update the corresponding SubActivity for aggregation
-            const subActivityRef = doc(db, `projects/${projectId}/activities/${item.activityId}/subactivities/${item.subActivityId}`);
-            const subActivityDoc = await transaction.get(subActivityRef);
-
-            if (!subActivityDoc.exists()) {
-                throw new Error(`SubActivity with ID ${item.subActivityId} not found.`);
-            }
-
+            // Calculate new values for the SubActivity
             const currentSubActivity = subActivityDoc.data() as SubActivity;
             const newPendingWork = (currentSubActivity.pendingWork || 0) + item.quantity;
             
-            // Initialize progressByZone if it doesn't exist
             const progressByZone = currentSubActivity.progressByZone || {};
             const zoneProgress = progressByZone[zoneName] || { doneWork: 0, pendingWork: 0 };
             zoneProgress.pendingWork = (zoneProgress.pendingWork || 0) + item.quantity;
             progressByZone[zoneName] = zoneProgress;
 
+            // Update the SubActivity document
             transaction.update(subActivityRef, { 
                 pendingWork: newPendingWork,
                 progressByZone: progressByZone,
@@ -563,7 +579,7 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
             });
         }
         
-        // 4. Update the ProjectDashboardSummary
+        // Update the ProjectDashboardSummary
         const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
         transaction.update(summaryRef, {
             totalPendingWork: increment(totalQuantity),
