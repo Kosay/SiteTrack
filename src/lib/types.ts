@@ -289,8 +289,9 @@ export interface CompanyDashboardSummary {
 export interface ProjectDashboardSummary {
     totalWork: number;
     doneWork: number;
+    totalPendingWork: number;
     progressPercent: number;
-    lastReportAt: any; // Firestore Timestamp
+    lastReportAt: any | null; // Firestore Timestamp
     updatedAt: any; // Firestore Timestamp
 }
 
@@ -329,5 +330,3 @@ export interface EquipmentType {
   id: string;
   name: string;
 }
-
-    

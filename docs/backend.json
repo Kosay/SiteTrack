@@ -255,7 +255,18 @@
         "$schema": "http://json-schema.org/draft-07/schema#", "title": "Company Dashboard Summary", "type": "object", "properties": { "activeProjects": { "type": "number" }, "totalEquipment": { "type": "number" }, "equipmentWorking": { "type": "number" }, "equipmentBroken": { "type": "number" }, "equipmentGarage": { "type": "number" }, "updatedAt": { "type": "string", "format": "date-time" } }
     },
     "ProjectDashboardSummary": {
-        "$schema": "http://json-schema.org/draft-07/schema#", "title": "Project Dashboard Summary", "type": "object", "properties": { "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "progressPercent": { "type": "number" }, "lastReportAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" } }
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project Dashboard Summary",
+      "type": "object",
+      "description": "A rollup document for high-level project progress metrics.",
+      "properties": {
+        "totalWork": { "type": "number" },
+        "doneWork": { "type": "number" },
+        "totalPendingWork": { "type": "number" },
+        "progressPercent": { "type": "number" },
+        "lastReportAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     },
      "Invitation": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -295,6 +306,7 @@
     "/users/{userId}/project_memberships/{projectId}": { "schema": { "$ref": "#/entities/UserProjectMembership" } },
     "/projects/{projectId}": { "schema": { "$ref": "#/entities/Project" } },
     "/projects/{projectId}/members/{userId}": { "schema": { "$ref": "#/entities/ProjectMember" } },
+    "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } },
     "/equipment/{equipmentId}": { "schema": { "$ref": "#/entities/Equipment" } },
     "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
     "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },
@@ -310,9 +322,6 @@
     "/documents/{documentId}": { "schema": { "$ref": "#/entities/Document" } },
     "/report_index/{reportId}": { "schema": { "$ref": "#/entities/ReportIndex" } },
     "/admin_data/summary": { "schema": { "$ref": "#/entities/AdminDashboardSummary" } },
-    "/companies/{companyId}/dashboards/summary": { "schema": { "$ref": "#/entities/CompanyDashboardSummary" } },
-    "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
+    "/companies/{companyId}/dashboards/summary": { "schema": { "$ref": "#/entities/CompanyDashboardSummary" } }
   }
 }
-
-    

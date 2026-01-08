@@ -14,9 +14,10 @@ import {
   WriteBatch,
   writeBatch,
   runTransaction,
+  increment,
 } from 'firebase/firestore';
 import { format } from 'date-fns';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem } from './types';
+import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { getFirestore } from 'firebase/firestore';
 
@@ -386,6 +387,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
 
   // 1. Create Project
   const projectRef = doc(collection(db, 'projects'));
+  const totalWork = (formData.subActivities || []).reduce((acc, sa) => acc + (sa.totalWork || 0), 0);
   const projectData: Partial<Project> = {
     name: formData.name,
     companyId: formData.companyId,
@@ -397,13 +399,26 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     googleMapsUrl: formData.googleMapsUrl,
     kmlUrl: formData.kmlUrl,
     archived: false,
-    totalWork: (formData.subActivities || []).reduce((acc, sa) => acc + (sa.totalWork || 0), 0),
+    totalWork: totalWork,
     doneWork: 0,
     approvedWork: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
   batch.set(projectRef, projectData);
+
+  // 1.5 Initialize ProjectDashboardSummary
+  const summaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary`);
+  const summaryData: ProjectDashboardSummary = {
+    totalWork: totalWork,
+    doneWork: 0,
+    totalPendingWork: 0,
+    progressPercent: 0,
+    lastReportAt: null,
+    updatedAt: serverTimestamp(),
+  };
+  batch.set(summaryRef, summaryData);
+
 
   // 2. Add Members
   const team = [
@@ -547,7 +562,13 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
                 updatedAt: serverTimestamp(),
             });
         }
+        
+        // 4. Update the ProjectDashboardSummary
+        const summaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        transaction.update(summaryRef, {
+            totalPendingWork: increment(totalQuantity),
+            lastReportAt: reportDate,
+            updatedAt: serverTimestamp(),
+        });
     });
 }
-
-    
