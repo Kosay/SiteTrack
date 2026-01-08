@@ -1076,10 +1076,9 @@ export default function NewProjectWizard() {
         skipEmptyLines: true,
         complete: (results) => {
             const parsedData = results.data;
-            let newActivities = [...formData.activities];
+            let currentActivities = [...formData.activities];
             let newSubActivities = [...formData.subActivities];
             const zoneNames = new Set(formData.zones.map(z => z.name));
-
             let errorOccurred = false;
 
             for (const row of parsedData) {
@@ -1089,19 +1088,15 @@ export default function NewProjectWizard() {
                     toast({ variant: "destructive", title: "Import Error", description: `Skipping a row due to missing required fields (ActivityCode, BoQ, SubActivityName, Unit, TotalWork).` });
                     continue;
                 }
-
-                let activityIndex = newActivities.findIndex(a => a.code === ActivityCode);
-
-                // If activity doesn't exist, create it
-                if (activityIndex === -1) {
+                
+                // Check if activity exists, if not, add it to the list of activities to be created
+                if (!currentActivities.some(a => a.code === ActivityCode)) {
                     if (!ActivityName) {
                         toast({ variant: "destructive", title: "Import Error", description: `ActivityName is required for new ActivityCode "${ActivityCode}".`});
                         errorOccurred = true;
-                        break;
+                        break; 
                     }
-                    const newActivity = { name: ActivityName, code: ActivityCode, description: '' };
-                    newActivities.push(newActivity);
-                    activityIndex = newActivities.length - 1;
+                    currentActivities.push({ name: ActivityName, code: ActivityCode, description: '' });
                 }
                 
                 const zoneQuantities = {};
@@ -1125,7 +1120,7 @@ export default function NewProjectWizard() {
             if (!errorOccurred) {
                 setFormData(prev => ({
                     ...prev,
-                    activities: newActivities,
+                    activities: currentActivities, // Update activities with any new ones found
                     subActivities: newSubActivities
                 }));
                 toast({ title: "Import Successful", description: `${parsedData.length} rows were processed.` });
@@ -1135,7 +1130,7 @@ export default function NewProjectWizard() {
             toast({ variant: "destructive", title: "CSV Parsing Error", description: error.message });
         }
     });
-     // Reset file input
+
     if (event.target) {
         event.target.value = '';
     }
