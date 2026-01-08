@@ -505,11 +505,11 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
   }
 
   // 4. Add Activities and Sub-activities
-  const activityRefs: Map<string, DocumentReference> = new Map();
+  const activityMap: Map<string, { ref: DocumentReference; name: string }> = new Map();
 
   for (const activity of formData.activities) {
     const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
-    activityRefs.set(activity.code, activityRef);
+    activityMap.set(activity.code, { ref: activityRef, name: activity.name });
     batch.set(activityRef, {
         name: activity.name,
         code: activity.code,
@@ -522,13 +522,12 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
     });
   }
 
-  // Create detailed summary for each sub-activity
   for (const subActivity of formData.subActivities) {
-      const activityRef = activityRefs.get(subActivity.activityCode);
-      if (!activityRef) continue;
+      const activityInfo = activityMap.get(subActivity.activityCode);
+      if (!activityInfo) continue;
 
       // Generate a new ID for the sub-activity first
-      const subActivityRef = doc(collection(db, activityRef.path, 'subactivities'));
+      const subActivityRef = doc(collection(db, activityInfo.ref.path, 'subactivities'));
       
       batch.set(subActivityRef, {
           BoQ: subActivity.BoQ,
@@ -551,7 +550,7 @@ export async function createProjectFromWizard(db: Firestore, formData: any, coll
           workGradeB: 0,
           workGradeC: 0,
           unit: subActivity.unit,
-          activityName: activityRefs.get(subActivity.activityCode)?.id, // This is wrong, it should be the activity name
+          activityName: activityInfo.name, // Use the correct name
           subActivityName: subActivity.name,
           BoQ: subActivity.BoQ,
           updatedAt: serverTimestamp(),
