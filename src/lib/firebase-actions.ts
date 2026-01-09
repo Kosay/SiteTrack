@@ -17,7 +17,8 @@ import {
   getDocs,
   collectionGroup,
   getFirestore,
-  addDoc
+  addDoc,
+  getDoc
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import type { 

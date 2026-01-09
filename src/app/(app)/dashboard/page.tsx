@@ -1,7 +1,8 @@
+
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, ClipboardPlus, FileText, LoaderCircle } from 'lucide-react';
+import { ArrowUpRight, ClipboardPlus, FileText, LoaderCircle, Briefcase } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -24,9 +25,7 @@ import { useFirestoreData } from '@/lib/hooks/use-firestore-data';
 
 export default function DashboardPage() {
   const {
-    activityProgressData,
-    overallProgressData,
-    recentLogs,
+    userProjects,
     isLoading,
   } = useFirestoreData();
 
@@ -44,125 +43,86 @@ export default function DashboardPage() {
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome back! Here's a summary of your construction site progress.
+          Welcome back! Here's a summary of your projects.
         </p>
       </header>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Overall Progress</CardTitle>
-            <CardDescription>
-              A timeline of the project's completion percentage.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <ProgressChart
-              data={overallProgressData}
-              type="line"
-              dataKey="progress"
-              index="date"
-            />
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Progress by Activity</CardTitle>
-            <CardDescription>
-              Completion status of major construction phases.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProgressChart
-              data={activityProgressData}
-              type="bar"
-              dataKey="progress"
-              index="name"
-            />
-          </CardContent>
-        </Card>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
+      <Card>
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Recent Progress Logs</CardTitle>
+              <CardTitle>My Projects</CardTitle>
               <CardDescription>
-                The latest updates from the construction site.
+                You are a member of {userProjects.length} project(s).
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/reports">
+              <Link href="/projects">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </Button>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Activity</TableHead>
-                  <TableHead className="hidden sm:table-cell">Status</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      <div className="font-medium">{log.activityName}</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        {log.description.substring(0, 50)}...
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                        <Badge
-                          variant={
-                            log.status === 'Completed' ? 'default' : 'secondary'
-                          }
-                          className={
-                            log.status === 'Completed'
-                              ? 'bg-primary/20 text-primary-foreground hover:bg-primary/30'
-                              : ''
-                          }
-                        >
-                          {log.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{log.logDate}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {userProjects.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {userProjects.map((project) => (
+                        <Card key={project.id} className="flex flex-col">
+                            <CardHeader>
+                                <CardTitle className="line-clamp-1">{project.name}</CardTitle>
+                                <CardDescription>{project.address || 'No address provided'}</CardDescription>
+                            </CardHeader>
+                             <CardContent className="mt-auto">
+                                <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                                    {project.status}
+                                </Badge>
+                             </CardContent>
+                             <CardFooter>
+                                <Button asChild className="w-full">
+                                    <Link href={`/projects/${project.id}/dashboard`}>View Dashboard</Link>
+                                </Button>
+                             </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-10 border-2 border-dashed rounded-md">
+                    <Briefcase className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h3 className="mt-2 text-sm font-semibold text-gray-900">No Projects Assigned</h3>
+                    <p className="mt-1 text-sm text-gray-500">You are not yet a member of any projects.</p>
+                </div>
+            )}
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Get started with common tasks.
-            </CardDescription>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Recent Actions</CardTitle>
+              <CardDescription>
+                Quick access to common tasks.
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <Link href="/progress">
+            <Link href="/daily-progress">
               <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
                 <ClipboardPlus className="h-8 w-8 text-primary" />
                 <div>
-                  <h3 className="font-semibold">Log New Progress</h3>
+                  <h3 className="font-semibold">Log Daily Progress</h3>
                   <p className="text-sm text-muted-foreground">
-                    Add a new update with photos and descriptions.
+                    Submit your daily work report with quantities and remarks.
                   </p>
                 </div>
               </div>
             </Link>
-            <Link href="/reports">
+            <Link href="/daily-report-review">
               <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
-                  <h3 className="font-semibold">Generate a Report</h3>
+                  <h3 className="font-semibold">Review Your Reports</h3>
                   <p className="text-sm text-muted-foreground">
-                    Compile logs into a shareable project report.
+                    Review and export your past daily progress submissions.
                   </p>
                 </div>
               </div>
@@ -173,3 +133,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

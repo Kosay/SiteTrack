@@ -1,9 +1,10 @@
+
 'use client';
 
-import { useMemo } from 'react';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, Query } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import type { ConstructionActivity, ProgressLog, ProgressLogWithActivity } from '@/lib/types';
+import type { ConstructionActivity, ProgressLog, ProgressLogWithActivity, Project, User as SiteUser } from '@/lib/types';
 import { format, subDays } from 'date-fns';
 
 /**
@@ -13,6 +14,9 @@ export function useFirestoreData() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
+  const [userProjects, setUserProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
   // Memoize collection references
   const activitiesCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -21,7 +25,7 @@ export function useFirestoreData() {
 
   // Use the useCollection hook to get real-time updates
   const { data: activities, isLoading: isLoadingActivities } = useCollection<ConstructionActivity>(activitiesCollectionRef);
-  
+
   const allProgressLogsCollectionRef = useMemoFirebase(() => {
      if (!user || !firestore) return null;
     // This is a collection group query to get all progress logs for a user across all activities
@@ -46,7 +50,31 @@ export function useFirestoreData() {
 
     }, [user, firestore, activities])
   );
-  
+
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const fetchUserProjects = async () => {
+      setIsLoadingProjects(true);
+      const projectsRef = collection(firestore, 'projects');
+      const projectsQuery = query(projectsRef, where('archived', '!=', true));
+      const projectsSnapshot = await getDocs(projectsQuery);
+      const allProjects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+      
+      const memberChecks = allProjects.map(async (project) => {
+        const memberRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
+        const memberSnap = await getDoc(memberRef);
+        return memberSnap.exists() ? project : null;
+      });
+
+      const projectsUserIsMemberOf = (await Promise.all(memberChecks)).filter(p => p !== null) as Project[];
+      setUserProjects(projectsUserIsMemberOf);
+      setIsLoadingProjects(false);
+    };
+
+    fetchUserProjects();
+  }, [user, firestore]);
+
   const progressLogs = useMemo(() => {
     if (!rawProgressLogs || !activities) return [];
     
@@ -113,6 +141,7 @@ export function useFirestoreData() {
     activityProgressData,
     overallProgressData,
     recentLogs,
-    isLoading: isUserLoading || isLoadingActivities || isLoadingLogs,
+    userProjects,
+    isLoading: isUserLoading || isLoadingActivities || isLoadingLogs || isLoadingProjects,
   };
 }
