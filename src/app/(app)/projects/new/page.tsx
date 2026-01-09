@@ -1076,8 +1076,8 @@ export default function NewProjectWizard() {
         skipEmptyLines: true,
         complete: (results) => {
             const parsedData = results.data;
-            let currentActivities = [...formData.activities];
-            let newSubActivities = [...formData.subActivities];
+            const newActivities = [...formData.activities];
+            const newSubActivities = [...formData.subActivities];
             const zoneNames = new Set(formData.zones.map(z => z.name));
             let errorOccurred = false;
 
@@ -1090,13 +1090,13 @@ export default function NewProjectWizard() {
                 }
                 
                 // Check if activity exists, if not, add it to the list of activities to be created
-                if (!currentActivities.some(a => a.code === ActivityCode)) {
+                if (!newActivities.some(a => a.code === ActivityCode)) {
                     if (!ActivityName) {
                         toast({ variant: "destructive", title: "Import Error", description: `ActivityName is required for new ActivityCode "${ActivityCode}".`});
                         errorOccurred = true;
                         break; 
                     }
-                    currentActivities.push({ name: ActivityName, code: ActivityCode, description: '' });
+                    newActivities.push({ name: ActivityName, code: ActivityCode, description: '' });
                 }
                 
                 const zoneQuantities = {};
@@ -1120,7 +1120,7 @@ export default function NewProjectWizard() {
             if (!errorOccurred) {
                 setFormData(prev => ({
                     ...prev,
-                    activities: currentActivities, // Update activities with any new ones found
+                    activities: newActivities,
                     subActivities: newSubActivities
                 }));
                 toast({ title: "Import Successful", description: `${parsedData.length} rows were processed.` });
