@@ -77,55 +77,6 @@ export async function createUserProfile(
 }
 
 
-type AddProgressLogData = Omit<ProgressLog, 'id' | 'logDate'>;
-
-/**
- * Adds a new progress log. If an image is included, it's uploaded to Firebase Storage first.
- * @param auth - The Firebase Auth instance.
- * @param data - The progress log data to add, including optional imageUrls as data URIs.
- */
-export async function addProgressLog(
-  auth: Auth,
-  data: AddProgressLogData
-): Promise<void> {
-  const userId = auth.currentUser?.uid;
-  if (!userId) {
-    throw new Error('User must be authenticated to log progress.');
-  }
-
-  const { activityId, imageUrls, ...logData } = data;
-  let finalImageUrls: string[] = [];
-
-  if (imageUrls && imageUrls.length > 0) {
-      // Assuming one image for simplicity, as in the form
-      const dataUri = imageUrls[0];
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 8);
-      const filePath = `projects/Stage 28/safety_observations/${timestamp}_${randomString}.jpg`;
-      const downloadURL = await uploadImageAndGetURL(dataUri, filePath);
-      finalImageUrls.push(downloadURL);
-  }
-
-  // This reference is currently not valid as we removed the activityId selection
-  // Storing logs in a top-level collection for now.
-  // This can be adjusted if project-specific logs are needed later.
-  const logsCollectionRef = collection(
-    getDb(),
-    `progress_logs` 
-  );
-
-  const newLog = {
-    ...logData,
-    activityId: activityId || 'safety-observation', // Fallback ID
-    userId, // Store who made the log
-    logDate: serverTimestamp(),
-    imageUrls: finalImageUrls,
-  };
-
-  // Using non-blocking update
-  addDocumentNonBlocking(logsCollectionRef, newLog);
-}
-
 type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorIds' | 'pmIds' | 'createdAt' | 'updatedAt'>;
 
 /**
@@ -614,8 +565,14 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         const subActivitySummaryRefs = items.map(item => 
             doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`)
         );
-        const subActivitySummarySnaps = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
-        
+        const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+
+        // Perform all reads together at the beginning
+        const [projectSummarySnap, ...subActivitySummarySnaps] = await Promise.all([
+            transaction.get(projectSummaryRef),
+            ...subActivitySummaryRefs.map(ref => transaction.get(ref))
+        ]);
+
         // --- 2. LOGIC & VALIDATION ---
         const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
         
@@ -654,9 +611,6 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         }
 
         // 4. Update the overall project summary
-        const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
-        const projectSummarySnap = await transaction.get(projectSummaryRef);
-
         if (projectSummarySnap.exists()) {
             transaction.update(projectSummaryRef, {
                 lastReportAt: serverTimestamp()
@@ -756,5 +710,3 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         }
     });
 }
-
-    
