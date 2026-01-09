@@ -27,7 +27,8 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read, write: if isSignedIn();
     }
-
+    
+    // Allow any signed-in user to read any project subcollection for reporting and admin.
     match /projects/{projectId}/{document=**} {
       allow read, write: if isSignedIn();
     }
@@ -66,5 +67,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
