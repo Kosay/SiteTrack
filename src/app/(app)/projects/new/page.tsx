@@ -1076,55 +1076,56 @@ export default function NewProjectWizard() {
         skipEmptyLines: true,
         complete: (results) => {
             const parsedData = results.data;
-            const newActivities = [...formData.activities];
-            const newSubActivities = [...formData.subActivities];
-            const zoneNames = new Set(formData.zones.map(z => z.name));
-            let errorOccurred = false;
+            
+            setFormData(prev => {
+                const newActivities = [...prev.activities];
+                const newSubActivities = [...prev.subActivities];
+                const activityCodes = new Set(newActivities.map(a => a.code));
+                const zoneNames = new Set(prev.zones.map(z => z.name));
 
-            for (const row of parsedData) {
-                const { ActivityCode, ActivityName, BoQ, SubActivityName, Description, Unit, TotalWork, ...zoneQtys } = row;
+                for (const row of parsedData) {
+                    const { ActivityCode, ActivityName, BoQ, SubActivityName, Description, Unit, TotalWork, ...zoneQtys } = row;
 
-                if (!ActivityCode || !BoQ || !SubActivityName || !Unit || !TotalWork) {
-                    toast({ variant: "destructive", title: "Import Error", description: `Skipping a row due to missing required fields (ActivityCode, BoQ, SubActivityName, Unit, TotalWork).` });
-                    continue;
-                }
-                
-                // Check if activity exists, if not, add it to the list of activities to be created
-                if (!newActivities.some(a => a.code === ActivityCode)) {
-                    if (!ActivityName) {
-                        toast({ variant: "destructive", title: "Import Error", description: `ActivityName is required for new ActivityCode "${ActivityCode}".`});
-                        errorOccurred = true;
-                        break; 
+                    if (!ActivityCode || !BoQ || !SubActivityName || !Unit || !TotalWork) {
+                        toast({ variant: "destructive", title: "Import Error", description: `Skipping a row due to missing required fields (ActivityCode, BoQ, SubActivityName, Unit, TotalWork).` });
+                        continue;
                     }
-                    newActivities.push({ name: ActivityName, code: ActivityCode, description: '' });
-                }
-                
-                const zoneQuantities = {};
-                for (const zoneName in zoneQtys) {
-                    if (zoneNames.has(zoneName)) {
-                        zoneQuantities[zoneName] = Number(zoneQtys[zoneName]) || 0;
+                    
+                    if (!activityCodes.has(ActivityCode)) {
+                         if (!ActivityName) {
+                            toast({ variant: "destructive", title: "Import Error", description: `ActivityName is required for new ActivityCode "${ActivityCode}".`});
+                            continue;
+                        }
+                        newActivities.push({ name: ActivityName, code: ActivityCode, description: '' });
+                        activityCodes.add(ActivityCode);
                     }
+                    
+                    const zoneQuantities = {};
+                    for (const zoneName in zoneQtys) {
+                        if (zoneNames.has(zoneName)) {
+                            zoneQuantities[zoneName] = Number(zoneQtys[zoneName]) || 0;
+                        }
+                    }
+                    
+                    newSubActivities.push({
+                        BoQ,
+                        name: SubActivityName,
+                        description: Description || '',
+                        unit: Unit,
+                        totalWork: Number(TotalWork) || 0,
+                        activityCode: ActivityCode,
+                        zoneQuantities,
+                    });
                 }
                 
-                newSubActivities.push({
-                    BoQ,
-                    name: SubActivityName,
-                    description: Description || '',
-                    unit: Unit,
-                    totalWork: Number(TotalWork) || 0,
-                    activityCode: ActivityCode,
-                    zoneQuantities,
-                });
-            }
-
-            if (!errorOccurred) {
-                setFormData(prev => ({
+                toast({ title: "Import Successful", description: `${parsedData.length} rows were processed.` });
+                
+                return {
                     ...prev,
                     activities: newActivities,
                     subActivities: newSubActivities
-                }));
-                toast({ title: "Import Successful", description: `${parsedData.length} rows were processed.` });
-            }
+                }
+            });
         },
         error: (error) => {
             toast({ variant: "destructive", title: "CSV Parsing Error", description: error.message });
