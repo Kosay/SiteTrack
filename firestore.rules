@@ -32,10 +32,9 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
-    // Allow engineers to query their own reports across all projects
+    // Allow any signed-in user to read reports for admin/review purposes.
     match /{path=**}/daily_reports/{reportId} {
-      allow read: if isSignedIn() && resource.data.engineerId == request.auth.uid;
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
     match /equipment/{equipmentId} {
