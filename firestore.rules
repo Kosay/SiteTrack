@@ -38,6 +38,11 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // Allow reading the items within any daily report for admin/review.
+    match /{path=**}/daily_reports/{reportId}/items/{itemId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /equipment/{equipmentId} {
       allow read, write: if isSignedIn();
     }
