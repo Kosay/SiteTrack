@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
@@ -104,6 +105,14 @@ export function ProgressForm() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Not Authenticated',
+            description: 'You must be logged in to submit a log.',
+        });
+        return;
+    }
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const description = formData.get('description') as string;
@@ -120,7 +129,7 @@ export function ProgressForm() {
 
     try {
       await addProgressLog(auth, {
-        activityId: 'safety-observation', // Generic ID for safety logs
+        activityId: 'safety-observation',
         description,
         imageUrls: imageData ? [imageData] : [],
         progressPercentage: 0,
@@ -133,11 +142,11 @@ export function ProgressForm() {
       });
       formRef.current?.reset();
       handleRemoveImage();
-    } catch (error) {
+    } catch (error: any) {
        toast({
         variant: 'destructive',
         title: 'Submission Failed',
-        description: 'Could not save your progress log. Please try again.',
+        description: error.message || 'Could not save your progress log. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -172,7 +181,7 @@ export function ProgressForm() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <ImageIcon className="mr-2 h-4 w-4" />
-                Upload Image
+                Upload Image (max 6MB)
               </Button>
             </div>
           <div className="space-y-2">
@@ -264,3 +273,5 @@ export function ProgressForm() {
     </form>
   );
 }
+
+    

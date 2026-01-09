@@ -19,6 +19,7 @@ import {
   DocumentReference,
   DocumentSnapshot,
 } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
 import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary, SubActivitySummary } from './types';
 import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
@@ -27,6 +28,23 @@ import { getFirestore } from 'firebase/firestore';
 // Helper to get Firestore instance
 function getDb(): Firestore {
   return getFirestore();
+}
+
+/**
+ * Uploads a base64 data URI to Firebase Storage and returns the public URL.
+ * @param dataUri - The base64 encoded image data URI.
+ * @param path - The path in Firebase Storage to upload the file to.
+ * @returns The public downloadable URL of the uploaded file.
+ */
+async function uploadImageAndGetURL(dataUri: string, path: string): Promise<string> {
+    if (!dataUri.startsWith('data:image/')) {
+        throw new Error('Invalid data URI provided.');
+    }
+    const storage = getStorage();
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadString(storageRef, dataUri, 'data_url');
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
 }
 
 /**
@@ -62,9 +80,9 @@ export async function createUserProfile(
 type AddProgressLogData = Omit<ProgressLog, 'id' | 'logDate'>;
 
 /**
- * Adds a new progress log to a construction activity for the current user.
+ * Adds a new progress log. If an image is included, it's uploaded to Firebase Storage first.
  * @param auth - The Firebase Auth instance.
- * @param data - The progress log data to add.
+ * @param data - The progress log data to add, including optional imageUrls as data URIs.
  */
 export async function addProgressLog(
   auth: Auth,
@@ -75,17 +93,33 @@ export async function addProgressLog(
     throw new Error('User must be authenticated to log progress.');
   }
 
-  const { activityId, ...logData } = data;
+  const { activityId, imageUrls, ...logData } = data;
+  let finalImageUrls: string[] = [];
 
+  if (imageUrls && imageUrls.length > 0) {
+      // Assuming one image for simplicity, as in the form
+      const dataUri = imageUrls[0];
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8);
+      const filePath = `projects/Stage 28/safety_observations/${timestamp}_${randomString}.jpg`;
+      const downloadURL = await uploadImageAndGetURL(dataUri, filePath);
+      finalImageUrls.push(downloadURL);
+  }
+
+  // This reference is currently not valid as we removed the activityId selection
+  // Storing logs in a top-level collection for now.
+  // This can be adjusted if project-specific logs are needed later.
   const logsCollectionRef = collection(
     getDb(),
-    `users/${userId}/constructionActivities/${activityId}/progressLogs`
+    `progress_logs` 
   );
 
   const newLog = {
     ...logData,
-    activityId: activityId,
+    activityId: activityId || 'safety-observation', // Fallback ID
+    userId, // Store who made the log
     logDate: serverTimestamp(),
+    imageUrls: finalImageUrls,
   };
 
   // Using non-blocking update
@@ -618,6 +652,26 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
                 console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
             }
         }
+
+        // 4. Update the overall project summary
+        const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        const projectSummarySnap = await transaction.get(projectSummaryRef);
+
+        if (projectSummarySnap.exists()) {
+            transaction.update(projectSummaryRef, {
+                lastReportAt: serverTimestamp()
+            });
+        } else {
+            // Failsafe: if summary doesn't exist, create it.
+            const newSummary: ProjectDashboardSummary = {
+                subActivityCount: 0, // This might be inaccurate if created here, but it's a failsafe
+                totalProgressSum: 0,
+                overallProgress: 0,
+                lastReportAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            };
+            transaction.set(projectSummaryRef, newSummary);
+        }
     });
 }
 
@@ -702,3 +756,5 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         }
     });
 }
+
+    
