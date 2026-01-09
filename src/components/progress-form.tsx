@@ -51,11 +51,11 @@ export function ProgressForm() {
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 6 * 1024 * 1024) { // 6MB limit
         toast({
           variant: 'destructive',
           title: 'Image Too Large',
-          description: 'Please upload an image smaller than 2MB.',
+          description: 'Please upload an image smaller than 6MB.',
         });
         return;
       }
