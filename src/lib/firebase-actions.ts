@@ -1,9 +1,7 @@
 
-
 'use client';
 
 import {
-  addDoc,
   collection,
   doc,
   serverTimestamp,
@@ -12,20 +10,22 @@ import {
   type Firestore,
   setDoc,
   deleteDoc,
-  WriteBatch,
   writeBatch,
   runTransaction,
   increment,
-  DocumentReference,
-  DocumentSnapshot,
+  type DocumentReference,
   getDocs,
   collectionGroup,
+  getFirestore,
+  addDoc
 } from 'firebase/firestore';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
-import type { Company, ProgressLog, UserProfile, EquipmentType, Equipment, Project, User, Invitation, Unit, Activity, SubActivity, DailyReport, ReportItem, ProjectDashboardSummary, SubActivitySummary } from './types';
-import { addDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { getFirestore } from 'firebase/firestore';
+import type { 
+  Company, UserProfile, EquipmentType, Equipment, 
+  Project, User, Invitation, Unit, Activity, 
+  SubActivity, DailyReport, ReportItem, 
+  ProjectDashboardSummary, SubActivitySummary 
+} from './types';
 
 // Helper to get Firestore instance
 function getDb(): Firestore {
@@ -33,20 +33,162 @@ function getDb(): Firestore {
 }
 
 /**
- * Uploads a base64 data URI to Firebase Storage and returns the public URL.
- * @param dataUri - The base64 encoded image data URI.
- * @param path - The path in Firebase Storage to upload the file to.
- * @returns The public downloadable URL of the uploaded file.
+ * PROJECT WIZARD: ATOMIC TRANSACTION
+ * This ensures the Project, Members, Zones, and BoQ are created as one single unit.
  */
-async function uploadImageAndGetURL(dataUri: string, path: string): Promise<string> {
-    if (!dataUri.startsWith('data:image/')) {
-        throw new Error('Invalid data URI provided.');
+export async function createProjectFromWizard(
+  formData: any, 
+  collections: { userMap: Map<string, User> }
+): Promise<string> {
+  const db = getDb();
+  const batch = writeBatch(db);
+  const { userMap } = collections;
+
+  // 1. Generate Project Reference
+  const projectRef = doc(collection(db, 'projects'));
+  const totalWork = (formData.subActivities || []).reduce((acc: number, sa: any) => acc + (sa.totalWork || 0), 0);
+
+  const projectData = {
+    name: formData.name,
+    companyId: formData.companyId,
+    directorId: formData.directorId,
+    pmId: formData.pmId,
+    pmName: userMap.get(formData.pmId)?.name || 'Unknown',
+    status: formData.status || 'Active',
+    address: formData.address,
+    googleMapsUrl: formData.googleMapsUrl,
+    kmlUrl: formData.kmlUrl,
+    archived: false,
+    totalWork: totalWork,
+    doneWork: 0,
+    approvedWork: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  batch.set(projectRef, projectData);
+
+  // 2. Initialize Dashboard Summary
+  const summaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary`);
+  batch.set(summaryRef, {
+    subActivityCount: formData.subActivities?.length || 0,
+    totalProgressSum: 0,
+    overallProgress: 0,
+    lastReportAt: null,
+    updatedAt: serverTimestamp(),
+  });
+
+  // 3. Add Members
+  const team = [
+    { id: formData.directorId, role: 'director' },
+    { id: formData.pmId, role: 'pm' },
+    ...(formData.cmIds || []).map((id: string) => ({ id, role: 'cm' })),
+    ...(formData.engineerIds || []).map((id: string) => ({ id, role: 'engineer' })),
+  ];
+
+  team.forEach(member => {
+    if (member.id) {
+      const user = userMap.get(member.id);
+      if (user) {
+        const memberRef = doc(db, `projects/${projectRef.id}/members/${member.id}`);
+        batch.set(memberRef, {
+          role: member.role,
+          userName: user.name,
+          createdAt: serverTimestamp(),
+        });
+      }
     }
-    const storage = getStorage();
-    const storageRef = ref(storage, path);
-    const snapshot = await uploadString(storageRef, dataUri, 'data_url');
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
+  });
+
+  // 4. Add Activities and Sub-activities
+  const activityMap = new Map<string, DocumentReference>();
+
+  for (const act of formData.activities) {
+    const actRef = doc(collection(db, `projects/${projectRef.id}/activities`));
+    activityMap.set(act.code, actRef);
+    batch.set(actRef, {
+      name: act.name,
+      code: act.code,
+      totalWork: 0,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  for (const sa of formData.subActivities) {
+    const actRef = activityMap.get(sa.activityCode);
+    if (!actRef) continue;
+
+    const saRef = doc(collection(db, actRef.path, 'subactivities'));
+    batch.set(saRef, {
+      name: sa.name,
+      unit: sa.unit,
+      totalWork: sa.totalWork,
+      zoneQuantities: sa.zoneQuantities,
+      createdAt: serverTimestamp(),
+    });
+
+    // Sub-activity specific dashboard entry
+    const saSummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${saRef.id}`);
+    batch.set(saSummaryRef, {
+      totalWork: sa.totalWork,
+      doneWork: 0,
+      pendingWork: 0,
+      unit: sa.unit,
+      subActivityName: sa.name,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+  return projectRef.id;
+}
+
+/**
+ * DAILY REPORTING: ENSURES PROGRESS UPDATES ARE ATOMIC
+ */
+export async function createDailyReport(data: any): Promise<void> {
+    const db = getDb();
+    const { projectId, items, reportDate, ...header } = data;
+    
+    await runTransaction(db, async (transaction) => {
+        const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
+        const diaryDate = format(reportDate, 'yyyyMMdd');
+
+        transaction.set(reportRef, {
+            ...header,
+            reportDate,
+            diaryDate,
+            status: 'Pending',
+            createdAt: serverTimestamp(),
+        });
+
+        for (const item of items) {
+            const itemRef = doc(collection(db, reportRef.path, 'items'));
+            transaction.set(itemRef, item);
+            
+            // Update Pending Work in Dashboard
+            const summaryRef = doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`);
+            transaction.update(summaryRef, {
+                pendingWork: increment(item.quantity),
+                updatedAt: serverTimestamp()
+            });
+        }
+    });
+}
+
+/**
+ * GLOBAL DATA HELPERS (Companies, Units, Equipment)
+ */
+export async function addCompany(data: Partial<Company>): Promise<void> {
+  const ref = doc(collection(getDb(), 'companies'));
+  await setDoc(ref, { ...data, archived: false, createdAt: serverTimestamp() });
+}
+
+export async function addUnit(data: Partial<Unit>): Promise<void> {
+  await addDoc(collection(getDb(), 'units'), { ...data, createdAt: serverTimestamp() });
+}
+
+export async function deleteUnit(unitId: string): Promise<void> {
+  await deleteDoc(doc(getDb(), 'units', unitId));
 }
 
 /**
@@ -74,36 +216,9 @@ export async function createUserProfile(
     createdAt: serverTimestamp(), // Optional: to track when the profile was made
   };
 
-  // Use setDoc to create a document with a specific ID (the UID)
-  setDocumentNonBlocking(userProfileRef, newUserProfile, {});
+  await setDoc(userProfileRef, newUserProfile, {});
 }
 
-
-type AddCompanyData = Omit<Company, 'id' | 'archived' | 'directorIds' | 'pmIds' | 'createdAt' | 'updatedAt'>;
-
-/**
- * Adds a new company to the global collection.
- * @param auth - The Firebase Auth instance.
- * @param data - The company data to add.
- */
-export async function addCompany(
-  auth: Auth,
-  data: AddCompanyData
-): Promise<void> {
-  if (!auth.currentUser) {
-    throw new Error('User must be authenticated to add a company.');
-  }
-
-  const companiesCollectionRef = collection(getDb(), 'companies');
-  const newCompany = {
-    ...data,
-    archived: false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  addDocumentNonBlocking(companiesCollectionRef, newCompany);
-}
 
 /**
  * Updates an existing company in the global collection.
@@ -121,7 +236,7 @@ export async function updateCompany(
   }
 
   const companyDocRef = doc(getDb(), 'companies', companyId);
-  updateDocumentNonBlocking(companyDocRef, {
+  await updateDoc(companyDocRef, {
       ...data,
       updatedAt: serverTimestamp()
   });
@@ -139,7 +254,7 @@ export async function addEquipmentType(data: AddEquipmentTypeData): Promise<void
     ...data,
     createdAt: serverTimestamp(),
   };
-  addDocumentNonBlocking(equipmentTypesCollectionRef, newEquipmentType);
+  await addDoc(equipmentTypesCollectionRef, newEquipmentType);
 }
 
 /**
@@ -151,7 +266,7 @@ export async function deleteEquipmentType(equipmentTypeId: string): Promise<void
     throw new Error('A valid Equipment Type ID must be provided.');
   }
   const equipmentTypeDocRef = doc(getDb(), 'equipment_names', equipmentTypeId);
-  deleteDocumentNonBlocking(equipmentTypeDocRef);
+  await deleteDoc(equipmentTypeDocRef);
 }
 
 type AddEquipmentData = Omit<Equipment, 'id'>;
@@ -166,7 +281,7 @@ export async function addEquipment(data: AddEquipmentData): Promise<void> {
     ...data,
     createdAt: serverTimestamp(),
   };
-  addDocumentNonBlocking(equipmentCollectionRef, newEquipment);
+  await addDoc(equipmentCollectionRef, newEquipment);
 }
 
 /**
@@ -203,7 +318,7 @@ export async function addProject(data: AddProjectData): Promise<void> {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  addDocumentNonBlocking(projectsCollectionRef, newProject);
+  await addDoc(projectsCollectionRef, newProject);
 }
 
 /**
@@ -216,7 +331,7 @@ export async function updateProject(
   data: Partial<Project>
 ): Promise<void> {
   const projectDocRef = doc(getDb(), 'projects', projectId);
-  updateDocumentNonBlocking(projectDocRef, {
+  await updateDoc(projectDocRef, {
       ...data,
       updatedAt: serverTimestamp()
   });
@@ -238,7 +353,7 @@ export async function createInvitation(data: CreateInvitationData): Promise<void
     createdAt: serverTimestamp(),
   };
 
-  await addDocumentNonBlocking(invitationsCollectionRef, newInvitation);
+  await addDoc(invitationsCollectionRef, newInvitation);
 }
 
 /**
@@ -251,33 +366,11 @@ export async function updateUser(
   data: Partial<Omit<User, 'id' | 'email'>>
 ): Promise<void> {
   const userDocRef = doc(getDb(), 'users', userId);
-  updateDocumentNonBlocking(userDocRef, {
+  await updateDoc(userDocRef, {
       ...data,
       updatedAt: serverTimestamp()
   });
 }
-
-type AddUnitData = Omit<Unit, 'id'>;
-
-/**
- * Adds a new global unit of measurement.
- * @param data - The unit data to add.
- */
-export async function addUnit(data: AddUnitData): Promise<void> {
-  const unitsCollectionRef = collection(getDb(), 'units');
-  addDocumentNonBlocking(unitsCollectionRef, { ...data, createdAt: serverTimestamp() });
-}
-
-/**
- * Deletes a global unit of measurement.
- * @param unitId - The ID of the unit to delete.
- */
-export async function deleteUnit(unitId: string): Promise<void> {
-    if (!unitId) throw new Error('A valid Unit ID must be provided.');
-    const unitDocRef = doc(getDb(), 'units', unitId);
-    deleteDocumentNonBlocking(unitDocRef);
-}
-
 
 type AddActivityData = Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate' >;
 
@@ -409,227 +502,6 @@ export async function deleteSubActivity(projectId: string, activityId: string, s
     await deleteDoc(subActivityDocRef);
 }
 
-
-export async function createProjectFromWizard(db: Firestore, formData: any, collections: { userMap: Map<string, User> }): Promise<void> {
-  const { userMap } = collections;
-  
-  const batch = writeBatch(db);
-
-  // 1. Create Project
-  const projectRef = doc(collection(db, 'projects'));
-  const totalWork = (formData.subActivities || []).reduce((acc, sa) => acc + (sa.totalWork || 0), 0);
-  const projectData: Partial<Project> = {
-    name: formData.name,
-    companyId: formData.companyId,
-    directorId: formData.directorId,
-    pmId: formData.pmId,
-    pmName: userMap.get(formData.pmId)?.name,
-    status: formData.status,
-    address: formData.address,
-    googleMapsUrl: formData.googleMapsUrl,
-    kmlUrl: formData.kmlUrl,
-    archived: false,
-    totalWork: totalWork,
-    doneWork: 0,
-    approvedWork: 0,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  batch.set(projectRef, projectData);
-
-  // 1.5 Initialize ProjectDashboardSummary
-  const summaryRef = doc(db, `projects/${projectRef.id}/dashboards/summary`);
-  const summaryData: ProjectDashboardSummary = {
-    subActivityCount: formData.subActivities?.length || 0,
-    totalProgressSum: 0,
-    overallProgress: 0,
-    lastReportAt: null,
-    updatedAt: serverTimestamp(),
-  };
-  batch.set(summaryRef, summaryData);
-
-
-  // 2. Add Members
-  const team = [
-    { id: formData.directorId, role: 'director' },
-    { id: formData.pmId, role: 'pm' },
-    ...(formData.cmIds || []).map(id => ({ id, role: 'cm' })),
-    ...(formData.engineerIds || []).map(id => ({ id, role: 'engineer' })),
-    ...(formData.safetyOfficerIds || []).map(id => ({ id, role: 'safety' })),
-    ...(formData.docControllerIds || []).map(id => ({ id, role: 'doc_controller' })),
-    ...(formData.logisticIds || []).map(id => ({ id, role: 'logistics' })),
-  ];
-  
-  for (const member of team) {
-    if (member.id) {
-      const user = userMap.get(member.id);
-      if (user) {
-        const memberRef = doc(db, `projects/${projectRef.id}/members/${member.id}`);
-        batch.set(memberRef, {
-          role: member.role,
-          companyId: user.companyId,
-          userName: user.name,
-          position: user.position,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-    }
-  }
-
-  // 3. Add Zones
-  for (const zone of formData.zones || []) {
-    const zoneRef = doc(collection(db, `projects/${projectRef.id}/zones`));
-    const zoneData: any = { 
-      name: zone.name, 
-      createdAt: serverTimestamp(), 
-      updatedAt: serverTimestamp() 
-    };
-    if (zone.mapSvg && zone.mapSvg.trim() !== '') {
-      zoneData.mapSvg = zone.mapSvg;
-    }
-    batch.set(zoneRef, zoneData);
-  }
-
-  // 4. Add Activities and Sub-activities
-  const activityMap: Map<string, { ref: DocumentReference; name: string }> = new Map();
-
-  for (const activity of formData.activities) {
-    const activityRef = doc(collection(db, `projects/${projectRef.id}/activities`));
-    activityMap.set(activity.code, { ref: activityRef, name: activity.name });
-    batch.set(activityRef, {
-        name: activity.name,
-        code: activity.code,
-        description: activity.description,
-        totalWork: 0, // This will be aggregated from sub-activities
-        doneWork: 0,
-        approvedWork: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    });
-  }
-
-  for (const subActivity of formData.subActivities) {
-      const activityInfo = activityMap.get(subActivity.activityCode);
-      if (!activityInfo) continue;
-
-      const subActivityRef = doc(collection(db, activityInfo.ref.path, 'subactivities'));
-      
-      batch.set(subActivityRef, {
-          BoQ: subActivity.BoQ,
-          name: subActivity.name,
-          description: subActivity.description,
-          unit: subActivity.unit,
-          totalWork: subActivity.totalWork,
-          zoneQuantities: subActivity.zoneQuantities,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-      });
-
-      // Use the subActivityRef.id to create the summary document
-      const subActivitySummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${subActivityRef.id}`);
-      batch.set(subActivitySummaryRef, {
-          totalWork: subActivity.totalWork,
-          doneWork: 0,
-          pendingWork: 0,
-          workGradeA: 0,
-          workGradeB: 0,
-          workGradeC: 0,
-          unit: subActivity.unit,
-          activityName: activityInfo.name, 
-          subActivityName: subActivity.name,
-          BoQ: subActivity.BoQ,
-          updatedAt: serverTimestamp(),
-      });
-  }
-    
-  await batch.commit();
-}
-
-
-interface CreateDailyReportData {
-    projectId: string;
-    companyId: string;
-    engineerId: string;
-    engineerName: string;
-    pmId: string;
-    cmId: string;
-    reportDate: Date;
-    items: (Omit<ReportItem, 'id'> & { zoneName?: string })[];
-}
-
-export async function createDailyReport(data: CreateDailyReportData): Promise<void> {
-    const db = getDb();
-    const { projectId, items, reportDate, ...reportHeader } = data;
-    
-    await runTransaction(db, async (transaction) => {
-        // --- 1. READS ---
-        const subActivitySummaryRefs = items.map(item => 
-            doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`)
-        );
-        const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
-
-        // Perform all reads together at the beginning
-        const subActivitySummarySnaps = await Promise.all(
-            subActivitySummaryRefs.map(ref => transaction.get(ref))
-        );
-        const projectSummarySnap = await transaction.get(projectSummaryRef);
-
-        // --- 2. LOGIC & VALIDATION ---
-        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-        
-        // --- 3. WRITES ---
-        const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
-        const diaryDate = format(reportDate, 'yyyyMMdd');
-
-        const newReport: Omit<DailyReport, 'id'> = {
-            ...reportHeader,
-            reportDate: reportDate,
-            diaryDate: diaryDate,
-            status: 'Pending',
-            totalQuantity: totalQuantity,
-            createdAt: serverTimestamp(),
-        };
-        transaction.set(reportRef, newReport);
-
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            const itemRef = doc(collection(db, reportRef.path, 'items'));
-            const { zoneName, ...itemData } = item;
-            transaction.set(itemRef, itemData);
-            
-            // Update the detailed sub-activity summary
-            const summaryRef = subActivitySummaryRefs[i];
-            if (subActivitySummarySnaps[i].exists()) {
-                 transaction.update(summaryRef, {
-                    pendingWork: increment(item.quantity),
-                    updatedAt: serverTimestamp()
-                });
-            } else {
-                // This is a failsafe. This document should have been created by the wizard.
-                // We are not creating it here because we lack all the necessary info (e.g., totalWork).
-                console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
-            }
-        }
-
-        // 4. Update the overall project summary
-        if (projectSummarySnap.exists()) {
-            transaction.update(projectSummaryRef, {
-                lastReportAt: serverTimestamp()
-            });
-        } else {
-            // Failsafe: if summary doesn't exist, create it.
-            const newSummary: ProjectDashboardSummary = {
-                subActivityCount: 0, // This might be inaccurate if created here, but it's a failsafe
-                totalProgressSum: 0,
-                overallProgress: 0,
-                lastReportAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            };
-            transaction.set(projectSummaryRef, newSummary);
-        }
-    });
-}
 
 /**
  * Approves a daily report and updates all relevant progress metrics.

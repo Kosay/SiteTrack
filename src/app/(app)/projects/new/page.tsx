@@ -1149,7 +1149,7 @@ export default function NewProjectWizard() {
     setIsSubmitting(true);
     try {
         const userMapForAction = new Map(users?.map(u => [u.id, u]) || []);
-        await createProjectFromWizard(firestore, formData, { userMap: userMapForAction });
+        await createProjectFromWizard(formData, { userMap: userMapForAction });
         toast({ title: 'Project Created!', description: `${formData.name} has been successfully created.`});
         router.push('/projects');
     } catch (error: any) {
