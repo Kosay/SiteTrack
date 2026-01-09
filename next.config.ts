@@ -3,9 +3,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  serverActions: {
-    bodySizeLimit: '8mb',
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -27,10 +24,18 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https'
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com'
       }
     ]
   }
 };
 
-export default nextConfig;
+const configWithServerActions: NextConfig & { serverActions: { bodySizeLimit: string } } = {
+  ...nextConfig,
+  serverActions: {
+    bodySizeLimit: '8mb',
+  },
+};
+
+export default configWithServerActions;
