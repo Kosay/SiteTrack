@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
@@ -97,7 +96,7 @@ export function ProgressForm() {
       setAnalysisResult(result);
       toast({
         title: 'Analysis Complete',
-        description: 'Safety check has finished successfully.',
+        description: result.violation_found ? 'A potential violation was found.' : 'No violations detected.',
       });
     }
     setIsAnalyzing(false);
@@ -129,11 +128,11 @@ export function ProgressForm() {
 
     try {
       await addProgressLog(auth, {
-        activityId: 'safety-observation',
+        activityId: analysisResult?.violation_found ? `VIOLATION-${analysisResult.rule_id}` : 'safety-observation',
         description,
         imageUrls: imageData ? [imageData] : [],
         progressPercentage: 0,
-        status: 'Logged',
+        status: analysisResult?.violation_found ? 'Grade C' : 'Logged',
       });
 
       toast({
@@ -189,7 +188,7 @@ export function ProgressForm() {
             <Textarea
               id="description"
               name="description"
-              placeholder="Describe the progress made..."
+              placeholder="Describe the progress made or the observation..."
               rows={4}
               required
             />
@@ -235,27 +234,19 @@ export function ProgressForm() {
               )}
             </div>
             {analysisResult && (
-              <Alert variant={analysisResult.isSafe ? 'default' : 'destructive'}>
-                {analysisResult.isSafe ? (
+              <Alert variant={!analysisResult.violation_found ? 'default' : 'destructive'}>
+                {!analysisResult.violation_found ? (
                   <CheckCircle2 className="h-4 w-4" />
                 ) : (
                   <AlertCircle className="h-4 w-4" />
                 )}
                 <AlertTitle>
-                  {analysisResult.isSafe
-                    ? 'No immediate safety violations detected.'
-                    : 'Potential Safety Violations Detected!'}
+                  {!analysisResult.violation_found
+                    ? 'Analysis Complete: No Violations Detected'
+                    : `Violation Found: Rule ${analysisResult.rule_id} (Grade C)`}
                 </AlertTitle>
                 <AlertDescription>
-                  {analysisResult.isSafe ? (
-                    'Our AI analysis did not find any obvious safety issues. Always perform a manual check.'
-                  ) : (
-                    <ul className="list-disc pl-5 mt-2">
-                      {analysisResult.violations.map((v, i) => (
-                        <li key={i}>{v}</li>
-                      ))}
-                    </ul>
-                  )}
+                  {analysisResult.description}
                 </AlertDescription>
               </Alert>
             )}
@@ -266,12 +257,10 @@ export function ProgressForm() {
             {(isSubmitting || isAnalyzing) && (
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
             )}
-            {isSubmitting ? 'Logging...' : 'Log Progress'}
+            {isSubmitting ? 'Logging...' : 'Log Observation'}
           </Button>
         </CardFooter>
       </Card>
     </form>
   );
 }
-
-    
