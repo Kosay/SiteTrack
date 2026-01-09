@@ -1,6 +1,11 @@
+
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
 import { HardHat, LoaderCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -15,10 +20,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
-import {
-  initiateEmailSignIn,
-  initiateEmailSignUp,
-} from '@/firebase/non-blocking-login';
 
 export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,7 +27,7 @@ export function LoginForm() {
   const { toast } = useToast();
   const auth = useAuth();
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -46,29 +47,46 @@ export function LoginForm() {
 
     try {
       if (isSigningUp) {
-        initiateEmailSignUp(auth, email, password);
+        await createUserWithEmailAndPassword(auth, email, password);
         toast({
-          title: 'Creating Account',
-          description:
-            'Please check your email to verify your account after signing in.',
+          title: 'Account Created!',
+          description: 'You have been successfully signed in.',
         });
       } else {
-        initiateEmailSignIn(auth, email, password);
+        await signInWithEmailAndPassword(auth, email, password);
         toast({
-          title: 'Signing In',
-          description: 'Please wait while we sign you in.',
+          title: 'Signed In',
+          description: 'Welcome back!',
         });
       }
+      // On success, the useUser hook will automatically handle the redirect
     } catch (error: any) {
+      console.error('Authentication Error:', error);
+      // Provide more specific error messages
+      let description = 'An unexpected error occurred. Please try again.';
+      switch (error.code) {
+        case 'auth/user-not-found':
+          description = 'No account found with this email. Please sign up first.';
+          break;
+        case 'auth/wrong-password':
+          description = 'Incorrect password. Please try again.';
+          break;
+        case 'auth/email-already-in-use':
+          description = 'An account already exists with this email address.';
+          break;
+        case 'auth/weak-password':
+          description = 'The password is too weak. It must be at least 6 characters long.';
+          break;
+        default:
+          description = error.message;
+      }
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
-        description:
-          error.message || 'An unexpected error occurred. Please try again.',
+        description: description,
       });
     } finally {
-      // Non-blocking, so we don't wait to set this to false
-      // The redirect will happen automatically on auth state change
+      setIsSubmitting(false);
     }
   };
 
