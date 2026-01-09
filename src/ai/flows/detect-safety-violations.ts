@@ -37,28 +37,17 @@ const detectSafetyViolationsFlow = ai.defineFlow(
     outputSchema: DetectSafetyViolationsOutputSchema,
   },
   async input => {
-    // URL to the raw text file in Firebase Storage. 
-    // This URL must be publicly accessible.
-    const safetyRulesUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-7211011860-c8b46.appspot.com/o/safety_rules.txt?alt=media';
+    
+    const prompt = `You are an AI safety inspector for construction sites in the UAE. Your analysis must be grounded in the provided general safety regulations.
 
-    let safetyRules = '';
-    try {
-      const response = await fetch(safetyRulesUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch safety rules: ${response.statusText}`);
-      }
-      safetyRules = await response.text();
-    } catch (error) {
-      console.error("Error fetching safety rules:", error);
-      // Fallback to a default set of rules if fetching fails
-      safetyRules = 'Default Safety Rule: All personnel must wear hard hats.';
-    }
-
-    const prompt = `You are an AI safety inspector for construction sites in the UAE. Your analysis must be grounded in the provided safety regulations.
-
-      **Safety Regulations (Source of Truth):**
+      **General UAE Construction Safety Regulations (Source of Truth):**
       ---
-      ${safetyRules}
+      1.  **Personal Protective Equipment (PPE):** All personnel must wear appropriate PPE, including hard hats, safety boots, and high-visibility vests at all times.
+      2.  **Fall Protection:** Any work at a height of 2 meters or more requires fall protection (e.g., guardrails, safety nets, personal fall arrest systems).
+      3.  **Excavations:** Excavations deeper than 1.2 meters must be shored or sloped to prevent collapse. Barriers must be placed around all excavations.
+      4.  **Scaffolding:** All scaffolding must be erected on stable ground, fully planked, and include guardrails if over 2 meters high.
+      5.  **Housekeeping:** The site must be kept clean and orderly. Walkways and work areas must be clear of debris, materials, and tripping hazards.
+      6.  **Fire Safety:** Adequate fire extinguishers must be available, clearly marked, and accessible.
       ---
 
       **Your Task:**
@@ -72,7 +61,7 @@ const detectSafetyViolationsFlow = ai.defineFlow(
     const {output} = await ai.generate({
         prompt: prompt,
         input: input,
-        model: 'googleai/gemini-2.5-flash',
+        model: 'googleai/gemini-pro-vision',
         output: {
             schema: DetectSafetyViolationsOutputSchema,
         }
