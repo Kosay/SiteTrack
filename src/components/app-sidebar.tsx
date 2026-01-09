@@ -17,6 +17,7 @@ import {
   Mail,
   Send,
   Search,
+  ShieldQuestion,
 } from 'lucide-react';
 
 import {
@@ -42,7 +43,7 @@ const navItems = [
   { label: 'Activities', href: '/activities', icon: ListChecks },
   { label: 'Equipment', href: '/equipment', icon: HardHat },
   { label: 'Equipment Types', href: '/equipment-types', icon: Truck },
-  { label: 'Seed Data', href: '/seed', icon: Database },
+  { label: 'Developer Tools', href: '/seed', icon: Database },
 ];
 
 export function AppSidebar() {

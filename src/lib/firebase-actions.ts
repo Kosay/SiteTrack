@@ -18,6 +18,8 @@ import {
   increment,
   DocumentReference,
   DocumentSnapshot,
+  getDocs,
+  collectionGroup,
 } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
@@ -568,10 +570,10 @@ export async function createDailyReport(data: CreateDailyReportData): Promise<vo
         const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
 
         // Perform all reads together at the beginning
-        const [projectSummarySnap, ...subActivitySummarySnaps] = await Promise.all([
-            transaction.get(projectSummaryRef),
-            ...subActivitySummaryRefs.map(ref => transaction.get(ref))
-        ]);
+        const subActivitySummarySnaps = await Promise.all(
+            subActivitySummaryRefs.map(ref => transaction.get(ref))
+        );
+        const projectSummarySnap = await transaction.get(projectSummaryRef);
 
         // --- 2. LOGIC & VALIDATION ---
         const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -647,7 +649,7 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         }
 
         const itemsQuery = collection(db, reportRef.path, 'items');
-        const itemsSnap = await transaction.get(itemsQuery as any); // Type assertion to bypass strict checks if needed
+        const itemsSnap = await getDocs(itemsQuery);
         const reportItems = itemsSnap.docs.map(d => d.data() as ReportItem);
         
         // Get all related summary documents
@@ -709,4 +711,113 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
             });
         }
     });
+}
+
+
+/**
+ * Scans all daily reports and recalculates all sub-activity summaries from scratch.
+ * This is a developer tool to fix data inconsistencies.
+ */
+export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChecked: number; summariesFixed: number }> {
+    const db = getDb();
+    
+    // A map to hold the "correct" calculated values for each summary
+    const calculatedSummaries: Map<string, Omit<SubActivitySummary, 'totalWork' | 'unit' | 'activityName' | 'subActivityName' | 'BoQ'>> = new Map();
+
+    // 1. Aggregate all data from all daily reports
+    const reportsQuery = collectionGroup(db, 'daily_reports');
+    const reportsSnapshot = await getDocs(reportsQuery);
+
+    for (const reportDoc of reportsSnapshot.docs) {
+        const report = reportDoc.data() as DailyReport;
+        
+        // We only care about reports that have been processed.
+        const isApproved = report.status === 'Approved';
+
+        const itemsSnapshot = await getDocs(collection(reportDoc.ref, 'items'));
+        for (const itemDoc of itemsSnapshot.docs) {
+            const item = itemDoc.data() as ReportItem;
+            const summaryId = item.subActivityId;
+
+            // Initialize if not present
+            if (!calculatedSummaries.has(summaryId)) {
+                calculatedSummaries.set(summaryId, {
+                    doneWork: 0,
+                    pendingWork: 0,
+                    workGradeA: 0,
+                    workGradeB: 0,
+                    workGradeC: 0,
+                    updatedAt: serverTimestamp(),
+                });
+            }
+
+            const current = calculatedSummaries.get(summaryId)!;
+            
+            if (isApproved) {
+                // This is a placeholder for grade. In a real scenario, the grade would be on the report or item.
+                // For now, let's assume 'A' for all approved items for the fix.
+                current.doneWork += item.quantity;
+                current.workGradeA += item.quantity;
+            } else { // 'Pending'
+                current.pendingWork += item.quantity;
+            }
+        }
+    }
+
+    // 2. Compare and fix all SubActivitySummary documents
+    let summariesChecked = 0;
+    let summariesFixed = 0;
+    const batch = writeBatch(db);
+
+    const summariesQuery = collectionGroup(db, 'dashboards');
+    const summariesSnapshot = await getDocs(summariesQuery);
+
+    for (const summaryDoc of summariesSnapshot.docs) {
+        // Skip the project-level 'summary' document
+        if (summaryDoc.id === 'summary') continue;
+        
+        summariesChecked++;
+        const summaryId = summaryDoc.id;
+        const currentSummary = summaryDoc.data() as SubActivitySummary;
+        const calculated = calculatedSummaries.get(summaryId);
+
+        // If we have calculated values for this summary, check for inconsistency
+        if (calculated) {
+            if (currentSummary.doneWork !== calculated.doneWork ||
+                currentSummary.pendingWork !== calculated.pendingWork ||
+                currentSummary.workGradeA !== calculated.workGradeA) {
+                
+                summariesFixed++;
+                batch.update(summaryDoc.ref, {
+                    ...calculated,
+                    updatedAt: serverTimestamp(),
+                });
+            }
+             // Remove from map to track summaries that exist in reports but not in dashboards
+            calculatedSummaries.delete(summaryId);
+        } else {
+            // This summary exists, but no reports reference it. Reset its values.
+             if (currentSummary.doneWork !== 0 || currentSummary.pendingWork !== 0) {
+                 summariesFixed++;
+                 batch.update(summaryDoc.ref, {
+                    doneWork: 0,
+                    pendingWork: 0,
+                    workGradeA: 0,
+                    workGradeB: 0,
+                    workGradeC: 0,
+                    updatedAt: serverTimestamp(),
+                 });
+             }
+        }
+    }
+
+    if (calculatedSummaries.size > 0) {
+        console.warn(`${calculatedSummaries.size} summaries had report data but no corresponding dashboard document. These were not fixed.`);
+    }
+    
+    if (summariesFixed > 0) {
+        await batch.commit();
+    }
+    
+    return { summariesChecked, summariesFixed };
 }

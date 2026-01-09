@@ -13,8 +13,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, writeBatch, doc } from 'firebase/firestore';
-import { LoaderCircle, Database } from 'lucide-react';
+import { LoaderCircle, Database, ShieldCheck } from 'lucide-react';
 import type { User } from '@/lib/types';
+import { checkAndFixSubActivitySummaries } from '@/lib/firebase-actions';
 
 // Company ID mapping
 const companyIdMap = {
@@ -71,6 +72,7 @@ const usersToSeed: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'companyId'>[] 
 
 export default function SeedPage() {
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -120,32 +122,72 @@ export default function SeedPage() {
     }
   };
 
+  const handleIntegrityCheck = async () => {
+    setIsChecking(true);
+    try {
+        const result = await checkAndFixSubActivitySummaries();
+        toast({
+            title: "Integrity Check Complete",
+            description: `${result.summariesChecked} summaries checked. ${result.summariesFixed} summaries fixed.`,
+        })
+
+    } catch (error: any) {
+         toast({
+            variant: 'destructive',
+            title: 'Check Failed',
+            description: error.message || 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsChecking(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">Seed Database</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Developer Tools</h1>
         <p className="text-muted-foreground">
-          Use this page to populate your Firestore database with initial data for development.
+          Use these tools to manage your development environment.
         </p>
       </header>
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle>Seed Company Users</CardTitle>
-          <CardDescription>
-            Click the button below to add sample users to the database. This action is irreversible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={handleSeed} disabled={isSeeding}>
-            {isSeeding ? (
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Database className="mr-2 h-4 w-4" />
-            )}
-            {isSeeding ? 'Seeding...' : `Seed ${usersToSeed.length} Users`}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+            <CardHeader>
+            <CardTitle>Seed Company Users</CardTitle>
+            <CardDescription>
+                Click the button below to add sample users to the database. This action is irreversible.
+            </CardDescription>
+            </CardHeader>
+            <CardContent>
+            <Button onClick={handleSeed} disabled={isSeeding}>
+                {isSeeding ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                <Database className="mr-2 h-4 w-4" />
+                )}
+                {isSeeding ? 'Seeding...' : `Seed ${usersToSeed.length} Users`}
+            </Button>
+            </CardContent>
+        </Card>
+         <Card>
+            <CardHeader>
+            <CardTitle>Data Integrity Check</CardTitle>
+            <CardDescription>
+                Scans all progress reports and recalculates dashboard summaries to fix any inconsistencies.
+            </CardDescription>
+            </CardHeader>
+            <CardContent>
+            <Button onClick={handleIntegrityCheck} disabled={isChecking} variant="outline">
+                {isChecking ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                )}
+                {isChecking ? 'Checking...' : `Check & Fix Summaries`}
+            </Button>
+            </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

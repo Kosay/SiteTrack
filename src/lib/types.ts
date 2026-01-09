@@ -1,6 +1,5 @@
 
 
-
 // Type definitions based on the new docs/backend.json
 
 // Top-level entities
@@ -345,4 +344,5 @@ export interface ProgressLogWithActivity extends ProgressLog {
 export interface EquipmentType {
   id: string;
   name: string;
+  createdAt?: any;
 }
