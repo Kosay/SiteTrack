@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
@@ -19,13 +20,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -33,7 +27,6 @@ import { analyzeImageForSafety } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { DetectSafetyViolationsOutput } from '@/ai/flows/detect-safety-violations';
-import type { ConstructionActivity } from '@/lib/types';
 import { addProgressLog } from '@/lib/firebase-actions';
 import { useAuth } from '@/firebase';
 
@@ -41,11 +34,7 @@ const placeholderImage = PlaceHolderImages.find(
   (img) => img.id === 'safety-analysis-placeholder'
 );
 
-interface ProgressFormProps {
-  activities: ConstructionActivity[];
-}
-
-export function ProgressForm({ activities }: ProgressFormProps) {
+export function ProgressForm() {
   const { toast } = useToast();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageData, setImageData] = useState<string | null>(null);
@@ -117,14 +106,13 @@ export function ProgressForm({ activities }: ProgressFormProps) {
     e.preventDefault();
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    const activityId = formData.get('activity') as string;
     const description = formData.get('description') as string;
 
-    if (!activityId || !description) {
+    if (!description) {
       toast({
         variant: 'destructive',
         title: 'Missing Fields',
-        description: 'Please fill out all required fields.',
+        description: 'Please provide a description.',
       });
       setIsSubmitting(false);
       return;
@@ -132,12 +120,11 @@ export function ProgressForm({ activities }: ProgressFormProps) {
 
     try {
       await addProgressLog(auth, {
-        activityId,
+        activityId: 'safety-observation', // Generic ID for safety logs
         description,
         imageUrls: imageData ? [imageData] : [],
-        // These are example values, adjust as needed
-        progressPercentage: Math.floor(Math.random() * 101),
-        status: ['Not Started', 'In Progress', 'Completed'][Math.floor(Math.random() * 3)],
+        progressPercentage: 0,
+        status: 'Logged',
       });
 
       toast({
@@ -168,23 +155,7 @@ export function ProgressForm({ activities }: ProgressFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="activity">Construction Activity</Label>
-              <Select name="activity" required>
-                <SelectTrigger id="activity">
-                  <SelectValue placeholder="Select an activity" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activities.map((activity) => (
-                    <SelectItem key={activity.id} value={activity.id}>
-                      {activity.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
+           <div className="space-y-2">
               <Label>Attach Image</Label>
               <input
                 type="file"
@@ -204,7 +175,6 @@ export function ProgressForm({ activities }: ProgressFormProps) {
                 Upload Image
               </Button>
             </div>
-          </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
