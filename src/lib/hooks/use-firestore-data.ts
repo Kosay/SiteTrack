@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, Query } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import type { ConstructionActivity, ProgressLog, ProgressLogWithActivity, Project, User as SiteUser } from '@/lib/types';
+import type { ConstructionActivity, ProgressLog, ProgressLogWithActivity, Project } from '@/lib/types';
 import { format, subDays } from 'date-fns';
 
 /**
@@ -62,8 +62,8 @@ export function useFirestoreData() {
       const allProjects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
       
       const memberChecks = allProjects.map(async (project) => {
-        const memberRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
-        const memberSnap = await getDoc(memberRef);
+        const memberDocRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
+        const memberSnap = await getDoc(memberDocRef);
         return memberSnap.exists() ? project : null;
       });
 
