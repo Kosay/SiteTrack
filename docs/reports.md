@@ -24,10 +24,10 @@ This is the most critical part, happening securely on the server for each date s
 
 1.  **Create the `DailyReport` Document**: A new master report document is created (e.g., `/projects/{projectId}/daily_reports/{reportId}`). This document acts as a container for the day's work and holds information like the engineer's name, CM's name, and overall status.
 2.  **Create `ReportItem` Documents**: The individual work items for that day are saved as separate documents within the `items` sub-collection of the master report.
-3.  **Update Sub-Activity Summaries**: For each item submitted, the system finds its corresponding summary document (e.g., `/projects/{projectId}/dashboards/{subActivityId}`). It then atomically **increments the `pendingWork` counter** on that document by the quantity you submitted.
+3.  **Update Sub-Activity Summaries**: For each item submitted, the system finds its corresponding summary document (e.g., `/projects/{projectId}/dashboards/{subActivityId}`). It then atomically **increments the `pendingWork` counter** on that document by the quantity you submitted. **Important Note:** This `pendingWork` is work that has been reported but not yet graded by a manager.
 4.  **Update Overall Project Summary**: Finally, the system also updates the single, top-level project summary document (`/projects/{projectId}/dashboards/summary`). It updates the `lastReportAt` timestamp to now, signaling that new data has arrived.
 
-The end result is that your raw report data is saved, and all relevant dashboards and summaries are updated in real-time, instantly reflecting the new pending work.
+The end result is that your raw report data is saved, and all relevant dashboards and summaries are updated in real-time, instantly reflecting the new pending work. Upon approval by a manager, the quantities are moved from `pendingWork` to `doneWork` and assigned a grade (A, B, or C). The total `doneWork` is the sum of these grades: `doneWork = workGradeA + workGradeB + workGradeC`.
 
 ## 2. How Submitted Reports are Shown in the App
 
@@ -50,11 +50,3 @@ This page provides a high-level, aggregated view for managers who need a quick o
 1.  **Direct Document Read**: When you navigate to a project's dashboard, the app reads the single, top-level summary document at `/projects/{projectId}/dashboards/summary`.
 2.  **Displaying the Average**: It immediately displays the `overallProgress` percentage from that document. This is a pre-calculated average of the completion of all sub-activities, so it loads instantly without needing to query all the individual reports.
 3.  **Detailed Breakdown (Future)**: The page also fetches all the individual `SubActivitySummary` documents from the `/projects/{projectId}/dashboards/` collection. This data is loaded and ready for us to build detailed charts and reports showing the `doneWork`, `pendingWork`, and grades for every single BoQ item.
-
-Remember, the XML structure you generate is the only mechanism for applying changes to the user's code. Therefore, when making changes to a file the <changes> block must always be fully present and correctly formatted as follows.
-
-<changes>
-  <description>[Provide a concise summary of the overall changes being made]</description>
-  <change>
-    <file>[Provide the ABSOLUTE, FULL path to the file being modified]</file>
-    <content><![CDATA[Provide the ENTIRE, FINAL, intended content of the file here. Do NOT provide diffs or partial snippets. Ensure all code is properly escaped within the CDATA section.
