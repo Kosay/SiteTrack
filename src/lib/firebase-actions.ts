@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -47,7 +46,7 @@ export async function createProjectFromWizard(
 
   // 1. Generate Project Reference
   const projectRef = doc(collection(db, 'projects'));
-  const totalWork = (formData.subActivities || []).reduce((acc: number, sa: any) => acc + (sa.totalWork || 0), 0);
+  const totalWork = (formData.subActivities || []).reduce((acc: number, sa: any) => acc + (Number(sa.totalWork) || 0), 0);
 
   const projectData = {
     name: formData.name,
@@ -55,7 +54,7 @@ export async function createProjectFromWizard(
     directorId: formData.directorId,
     pmId: formData.pmId,
     pmName: userMap.get(formData.pmId)?.name || 'Unknown',
-    status: formData.status || 'Active',
+    status: formData.status || 'active',
     address: formData.address,
     googleMapsUrl: formData.googleMapsUrl,
     kmlUrl: formData.kmlUrl,
@@ -182,11 +181,7 @@ export async function createDailyReport(data: any): Promise<void> {
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
 
-        // 1. Get all documents that will be read/written to
-        const summaryRefs = items.map((item: ReportItem) => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
-        const summarySnaps = await Promise.all(summaryRefs.map((ref: DocumentReference) => transaction.get(ref)));
-
-        // 2. Perform all writes
+        // 1. Create the main report document
         transaction.set(reportRef, {
             ...header,
             reportDate,
@@ -195,12 +190,14 @@ export async function createDailyReport(data: any): Promise<void> {
             createdAt: serverTimestamp(),
         });
 
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            const summarySnap = summarySnaps[i];
-
+        // 2. Loop through each item, get its summary, and update it.
+        for (const item of items) {
+            // Write the individual report item
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, item);
+            
+            const summaryRef = doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`);
+            const summarySnap = await transaction.get(summaryRef);
             
             if (summarySnap.exists()) {
                 const zoneName = item.zoneName;
@@ -209,13 +206,15 @@ export async function createDailyReport(data: any): Promise<void> {
                     updatedAt: serverTimestamp()
                 };
 
-                // Use dot notation for nested map updates
+                // Use dot notation for nested map updates if zone exists
                 if (zoneName) {
                     updateData[`progressByZone.${zoneName}.pendingWork`] = increment(item.quantity);
                 }
                 
                 transaction.update(summarySnap.ref, updateData);
             } else {
+                 // Failsafe: if the summary doc doesn't exist, log an error but don't crash the transaction.
+                 // This allows other valid items in the report to be processed.
                  console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
             }
         }
@@ -601,6 +600,3 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
     
     return { summariesChecked, summariesFixed };
 }
-
-
-    
