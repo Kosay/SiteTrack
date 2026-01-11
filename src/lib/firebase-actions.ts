@@ -174,41 +174,61 @@ export async function createProjectFromWizard(
 
 /**
  * DAILY REPORTING: ENSURES PROGRESS UPDATES ARE ATOMIC
+ * Fixed to be resilient against missing SubActivitySummary documents.
  */
 export async function createDailyReport(data: any): Promise<void> {
     const db = getDb();
     const { projectId, items, reportDate, ...header } = data;
-    
+
+    // Safety check for Date object
+    const dateObj = reportDate instanceof Date ? reportDate : new Date(reportDate);
+
     await runTransaction(db, async (transaction) => {
-        // --- READ PHASE ---
-        // Get all necessary SubActivitySummary documents first.
-        const summaryRefs = items.map((item: ReportItem) => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
+        // --- 1. PREPARE REFERENCES ---
+        // Prepare the overall project summary reference
+        const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
+        
+        // Prepare all sub-activity summary references based on report items
+        const summaryRefs = items.map((item: ReportItem) => 
+            doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`)
+        );
+
+        // --- 2. READ PHASE (All reads must happen before any writes) ---
+        // We fetch the overall summary and all item-specific summaries in parallel
+        const projectSummarySnap = await transaction.get(projectSummaryRef);
         const summarySnaps = await Promise.all(summaryRefs.map(ref => transaction.get(ref)));
 
-        // --- WRITE PHASE ---
-        // After all reads are done, proceed with all writes.
+        // --- 3. WRITE PHASE ---
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
-        const diaryDate = format(reportDate, 'yyyyMMdd');
+        const diaryDate = format(dateObj, 'yyyyMMdd');
 
-        // 1. Create the main report document
+        // WRITE 1: Create the main Daily Report document
         transaction.set(reportRef, {
             ...header,
-            reportDate,
-            diaryDate,
+            reportDate: dateObj,
+            diaryDate: diaryDate,
             status: 'Pending',
             createdAt: serverTimestamp(),
         });
 
-        // 2. Loop through each item again to perform writes
+        // WRITE 2: Update the Project Dashboard Summary (if it exists)
+        if (projectSummarySnap.exists()) {
+            transaction.update(projectSummaryRef, {
+                lastReportAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        }
+
+        // WRITE 3: Process individual Report Items
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             const summarySnap = summarySnaps[i];
 
-            // Write the individual report item
+            // Create the individual report item in the sub-collection
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, item);
             
-            // Check if the summary document exists before updating
+            // Atomically update the summary ONLY if the document was found in the read phase
             if (summarySnap.exists()) {
                 const zoneName = item.zoneName;
                 const updateData: { [key: string]: any } = {
@@ -216,15 +236,15 @@ export async function createDailyReport(data: any): Promise<void> {
                     updatedAt: serverTimestamp()
                 };
 
-                // Use dot notation for nested map updates if zone exists
+                // If zoneName is present, update the nested map
                 if (zoneName) {
                     updateData[`progressByZone.${zoneName}.pendingWork`] = increment(item.quantity);
                 }
                 
                 transaction.update(summarySnap.ref, updateData);
             } else {
-                 // Log an error, but do not crash the transaction.
-                 console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
+                // LOG THE ERROR but do NOT throw/abort. This allows the rest of the report to save.
+                console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Skipping pendingWork update for this item.`);
             }
         }
     });
