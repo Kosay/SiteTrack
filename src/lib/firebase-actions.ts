@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -17,7 +18,8 @@ import {
   collectionGroup,
   getFirestore,
   addDoc,
-  getDoc
+  getDoc,
+  type DocumentSnapshot
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import type { 
@@ -178,6 +180,13 @@ export async function createDailyReport(data: any): Promise<void> {
     const { projectId, items, reportDate, ...header } = data;
     
     await runTransaction(db, async (transaction) => {
+        // --- READ PHASE ---
+        // Get all necessary SubActivitySummary documents first.
+        const summaryRefs = items.map((item: ReportItem) => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
+        const summarySnaps = await Promise.all(summaryRefs.map(ref => transaction.get(ref)));
+
+        // --- WRITE PHASE ---
+        // After all reads are done, proceed with all writes.
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
 
@@ -190,15 +199,16 @@ export async function createDailyReport(data: any): Promise<void> {
             createdAt: serverTimestamp(),
         });
 
-        // 2. Loop through each item, get its summary, and update it.
-        for (const item of items) {
+        // 2. Loop through each item again to perform writes
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const summarySnap = summarySnaps[i];
+
             // Write the individual report item
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, item);
             
-            const summaryRef = doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`);
-            const summarySnap = await transaction.get(summaryRef);
-            
+            // Check if the summary document exists before updating
             if (summarySnap.exists()) {
                 const zoneName = item.zoneName;
                 const updateData: { [key: string]: any } = {
@@ -213,8 +223,7 @@ export async function createDailyReport(data: any): Promise<void> {
                 
                 transaction.update(summarySnap.ref, updateData);
             } else {
-                 // Failsafe: if the summary doc doesn't exist, log an error but don't crash the transaction.
-                 // This allows other valid items in the report to be processed.
+                 // Log an error, but do not crash the transaction.
                  console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
             }
         }
