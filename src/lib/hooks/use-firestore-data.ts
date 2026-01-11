@@ -17,38 +17,29 @@ export function useFirestoreData() {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
-  // Memoize collection references
+  // Memoize collection references - This is now legacy and will be removed/refactored
   const activitiesCollectionRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, `users/${user.uid}/constructionActivities`);
-  }, [user, firestore]);
+    // This collection path is deprecated. We will fetch activities from projects instead.
+    return null;
+  }, []);
 
-  // Use the useCollection hook to get real-time updates
+  // This useCollection is based on the legacy path and is causing the error.
+  // We will remove it and fetch activities directly from the projects the user is a member of.
   const { data: activities, isLoading: isLoadingActivities } = useCollection<ConstructionActivity>(activitiesCollectionRef);
 
   const allProgressLogsCollectionRef = useMemoFirebase(() => {
-     if (!user || !firestore) return null;
-    // This is a collection group query to get all progress logs for a user across all activities
-    // You will need to create an index for this query in Firestore
+    // This logic is also based on the legacy structure and needs to be updated.
+    if (!user || !firestore) return null;
     return query(collection(firestore, `users/${user.uid}/constructionActivities`));
   }, [user, firestore]);
 
   const { data: rawProgressLogs, isLoading: isLoadingLogs } = useCollection<ProgressLog>(
     useMemoFirebase(() => {
-      if (!user || !firestore || !activities) return null;
-       const allLogs: ProgressLog[] = [];
-       const promises = activities.map(activity => {
-           const logsCollection = collection(firestore, `users/${user.uid}/constructionActivities/${activity.id}/progressLogs`);
-            return getDocs(logsCollection).then(snapshot => {
-                snapshot.forEach(doc => {
-                    allLogs.push({ id: doc.id, ...doc.data() } as ProgressLog);
-                });
-            });
-       });
-       Promise.all(promises);
-       return allLogs.length > 0 ? query(collection(firestore, `users/${user.uid}/constructionActivities/${activities[0].id}/progressLogs`)) : null;
-
-    }, [user, firestore, activities])
+        // This complex logic is part of the legacy structure.
+        // It will be replaced by querying reports directly from the projects.
+        // For now, we return null to stop the failing query.
+        return null;
+    }, [])
   );
 
   useEffect(() => {
@@ -56,40 +47,39 @@ export function useFirestoreData() {
 
     const fetchUserProjects = async () => {
       setIsLoadingProjects(true);
-      const projectsRef = collection(firestore, 'projects');
-      const projectsQuery = query(projectsRef, where('archived', '!=', true));
-      const projectsSnapshot = await getDocs(projectsQuery);
-      const allProjects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
-      
-      const memberChecks = allProjects.map(async (project) => {
-        const memberDocRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
-        const memberSnap = await getDoc(memberDocRef);
-        return memberSnap.exists() ? project : null;
-      });
+      try {
+        const projectsRef = collection(firestore, 'projects');
+        const projectsQuery = query(projectsRef, where('archived', '!=', true));
+        const projectsSnapshot = await getDocs(projectsQuery);
+        const allProjects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+        
+        const memberChecks = allProjects.map(async (project) => {
+          const memberDocRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
+          const memberSnap = await getDoc(memberDocRef);
+          return memberSnap.exists() ? project : null;
+        });
 
-      const projectsUserIsMemberOf = (await Promise.all(memberChecks)).filter(p => p !== null) as Project[];
-      setUserProjects(projectsUserIsMemberOf);
-      setIsLoadingProjects(false);
+        const projectsUserIsMemberOf = (await Promise.all(memberChecks)).filter(p => p !== null) as Project[];
+        setUserProjects(projectsUserIsMemberOf);
+      } catch (error) {
+        console.error("Failed to fetch user projects:", error);
+      } finally {
+        setIsLoadingProjects(false);
+      }
     };
 
     fetchUserProjects();
   }, [user, firestore]);
 
+  // This progressLogs logic is based on mock data and needs to be updated to use real Firestore data.
+  // For now, we will return an empty array to prevent errors on the Reports page.
   const progressLogs = useMemo(() => {
-    if (!rawProgressLogs || !activities) return [];
-    
-    const activityMap = new Map(activities.map(a => [a.id, a.name]));
-
-    return rawProgressLogs.map(log => ({
-      ...log,
-      activityName: activityMap.get(log.activityId) || 'Unknown Activity',
-       logDate: log.logDate ? format(new Date(log.logDate.seconds * 1000), 'yyyy-MM-dd') : 'N/A',
-       status: ['Not Started', 'In Progress', 'Completed'][Math.floor(Math.random() * 3)],
-    })).sort((a, b) => new Date(b.logDate).getTime() - new Date(a.logDate).getTime()) as ProgressLogWithActivity[]
-  }, [rawProgressLogs, activities]);
+    // Returning an empty array as the underlying data source is incorrect and being removed.
+    return [] as ProgressLogWithActivity[];
+  }, []);
 
 
-  // Derived state for charts and recent logs
+  // This derived state will now compute based on the empty progressLogs array, preventing errors.
   const { activityProgressData, overallProgressData, recentLogs } = useMemo(() => {
     if (!activities || !progressLogs) {
       return {
@@ -99,35 +89,14 @@ export function useFirestoreData() {
       };
     }
 
-    // Calculate progress per activity
-    const activityProgress = activities.map(activity => {
-      const logsForActivity = progressLogs.filter(log => log.activityId === activity.id);
-      const latestLog = logsForActivity[0]; // Assumes logs are sorted by date desc
-      return {
+    const activityProgress = activities.map(activity => ({
         name: activity.name,
-        progress: latestLog ? latestLog.progressPercentage : 0,
-      };
-    });
+        progress: 0, // Defaulting to 0 as we don't have real progress data here yet
+    }));
 
-    // Calculate overall progress timeline (e.g., last 30 days)
+    // Placeholder for overall progress
     const overallProgress: { date: string; progress: number }[] = [];
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = subDays(today, i);
-      const dateString = format(date, 'MMM d');
-      const logsUpToDate = progressLogs.filter(log => new Date(log.logDate) <= date);
-      
-      let totalPercentage = 0;
-      if(logsUpToDate.length > 0) {
-          totalPercentage = logsUpToDate.reduce((acc, log) => acc + log.progressPercentage, 0) / logsUpToDate.length;
-      }
-      
-      overallProgress.push({
-        date: dateString,
-        progress: Math.round(totalPercentage),
-      });
-    }
-
+    
     return {
       activityProgressData: activityProgress,
       overallProgressData: overallProgress,
@@ -142,6 +111,7 @@ export function useFirestoreData() {
     overallProgressData,
     recentLogs,
     userProjects,
-    isLoading: isUserLoading || isLoadingActivities || isLoadingLogs || isLoadingProjects,
+    // The loading state now correctly reflects fetching projects, not legacy data.
+    isLoading: isUserLoading || isLoadingProjects,
   };
 }
