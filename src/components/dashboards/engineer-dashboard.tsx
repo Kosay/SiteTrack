@@ -125,7 +125,13 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
 
   const subActivitiesQuery = useMemoFirebase(() => {
       if (projectIds.length === 0) return null;
-      return query(collectionGroup(firestore, 'dashboards'), where('__name__', '!=', 'summary'), where('projectId', 'in', projectIds));
+      // The 'BoQ' field only exists on SubActivitySummary documents, not the main 'summary' document.
+      // This is the correct way to filter the collection group.
+      return query(
+        collectionGroup(firestore, 'dashboards'), 
+        where('projectId', 'in', projectIds),
+        where('BoQ', '!=', '')
+      );
   }, [firestore, projectIds]);
 
   const { data: subActivities, isLoading: isLoadingSubActivities } = useCollection<SubActivitySummary>(subActivitiesQuery);
