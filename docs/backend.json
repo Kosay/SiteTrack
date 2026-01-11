@@ -160,7 +160,7 @@
     },
     "SubActivity": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "SubActivity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "unit": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "pendingWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" }, "progressByZone": { "type": "object", "description": "A map tracking work quantities for each zone." } }, "required": ["name", "description", "unit", "totalWork"]
+        "title": "SubActivity", "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "unit": { "type": "string" }, "totalWork": { "type": "number" }, "doneWork": { "type": "number" }, "approvedWork": { "type": "number" }, "pendingWork": { "type": "number" }, "workGradeA": { "type": "number" }, "workGradeB": { "type": "number" }, "workGradeC": { "type": "number" }, "plannedQuantity": { "type": "number" }, "plannedStartDate": { "type": "string", "format": "date-time" }, "plannedEndDate": { "type": "string", "format": "date-time" }, "progressByZone": { "type": "object", "description": "A map tracking work quantities for each zone, e.g., { 'Zone A': { doneWork: 10, pendingWork: 5 } }." } }, "required": ["name", "description", "unit", "totalWork"]
     },
     "SubActivityZoneQuantity": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -230,6 +230,7 @@
         "activityId": { "type": "string" },
         "subActivityId": { "type": "string" },
         "zoneId": { "type": "string" },
+        "zoneName": { "type": "string" },
         "quantity": { "type": "number" },
         "remarks": { "type": "string" },
         "generalForeman": { "type": "string"},
@@ -283,6 +284,7 @@
         "activityName": { "type": "string" },
         "subActivityName": { "type": "string" },
         "BoQ": { "type": "string" },
+        "progressByZone": { "type": "object", "description": "A map tracking work quantities for each zone, e.g., { 'Zone A': { doneWork: 10, pendingWork: 5 } }." },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["totalWork", "doneWork", "pendingWork", "unit", "activityName", "subActivityName", "BoQ"]
@@ -320,28 +322,73 @@
   },
   "auth": { "providers": ["password", "anonymous"] },
   "firestore": {
-    "/companies/{companyId}": { "schema": { "$ref": "#/entities/Company" } },
-    "/users/{userId}": { "schema": { "$ref": "#/entities/User" } },
-    "/users/{userId}/project_memberships/{projectId}": { "schema": { "$ref": "#/entities/UserProjectMembership" } },
-    "/projects/{projectId}": { "schema": { "$ref": "#/entities/Project" } },
-    "/projects/{projectId}/members/{userId}": { "schema": { "$ref": "#/entities/ProjectMember" } },
-    "/projects/{projectId}/dashboards/summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } },
-    "/projects/{projectId}/dashboards/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivitySummary" } },
-    "/equipment/{equipmentId}": { "schema": { "$ref": "#/entities/Equipment" } },
-    "/equipment/{equipmentId}/logs/{logId}": { "schema": { "$ref": "#/entities/EquipmentLog" } },
-    "/equipment_names/{equipmentNameId}": { "schema": { "$ref": "#/entities/EquipmentName" } },
-    "/invitations/{invitationId}": { "schema": { "$ref": "#/entities/Invitation" } },
-    "/units/{unitId}": { "schema": { "$ref": "#/entities/Unit" } },
-    "/projects/{projectId}/zones/{zoneId}": { "schema": { "$ref": "#/entities/Zone" } },
-    "/projects/{projectId}/activities/{activityId}": { "schema": { "$ref": "#/entities/Activity" } },
-    "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}": { "schema": { "$ref": "#/entities/SubActivity" } },
-    "/projects/{projectId}/activities/{activityId}/subactivities/{subActivityId}/zoneQuantities/{zoneId}": { "schema": { "$ref": "#/entities/SubActivityZoneQuantity" } },
-    "/projects/{projectId}/progress_reports/{reportId}": { "schema": { "$ref": "#/entities/ProgressReport" } },
-    "/projects/{projectId}/daily_reports/{reportId}": { "schema": { "$ref": "#/entities/DailyReport" } },
-    "/projects/{projectId}/daily_reports/{reportId}/items/{itemId}": { "schema": { "$ref": "#/entities/ReportItem" } },
-    "/documents/{documentId}": { "schema": { "$ref": "#/entities/Document" } },
-    "/report_index/{reportId}": { "schema": { "$ref": "#/entities/ReportIndex" } },
-    "/admin_data/summary": { "schema": { "$ref": "#/entities/AdminDashboardSummary" } },
-    "/companies/{companyId}/dashboards/summary": { "schema": { "$ref": "#/entities/CompanyDashboardSummary" } }
+    "rules": "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isSignedIn() {\n      return request.auth != null;\n    }\n\n    match /{document=**} {\n      allow read, write: if isSignedIn();\n    }\n  }\n}\n",
+    "collections": {
+      "companies": {
+        "schema": { "$ref": "#/entities/Company" },
+        "subcollections": {
+          "dashboards": {
+            "documents": {
+              "summary": { "schema": { "$ref": "#/entities/CompanyDashboardSummary" } }
+            }
+          }
+        }
+      },
+      "users": {
+        "schema": { "$ref": "#/entities/User" },
+        "subcollections": {
+          "project_memberships": { "schema": { "$ref": "#/entities/UserProjectMembership" } }
+        }
+      },
+      "projects": {
+        "schema": { "$ref": "#/entities/Project" },
+        "subcollections": {
+          "members": { "schema": { "$ref": "#/entities/ProjectMember" } },
+          "dashboards": {
+            "documents": {
+              "summary": { "schema": { "$ref": "#/entities/ProjectDashboardSummary" } }
+            },
+            "wildcard_schema": { "$ref": "#/entities/SubActivitySummary" }
+          },
+          "zones": { "schema": { "$ref": "#/entities/Zone" } },
+          "activities": {
+            "schema": { "$ref": "#/entities/Activity" },
+            "subcollections": {
+              "subactivities": {
+                "schema": { "$ref": "#/entities/SubActivity" },
+                "subcollections": {
+                  "zoneQuantities": { "schema": { "$ref": "#/entities/SubActivityZoneQuantity" } }
+                }
+              }
+            }
+          },
+          "progress_reports": { "schema": { "$ref": "#/entities/ProgressReport" } },
+          "daily_reports": {
+            "schema": { "$ref": "#/entities/DailyReport" },
+            "subcollections": {
+              "items": { "schema": { "$ref": "#/entities/ReportItem" } }
+            }
+          }
+        }
+      },
+      "equipment": {
+        "schema": { "$ref": "#/entities/Equipment" },
+        "subcollections": {
+          "logs": { "schema": { "$ref": "#/entities/EquipmentLog" } }
+        }
+      },
+      "equipment_names": { "schema": { "$ref": "#/entities/EquipmentName" } },
+      "invitations": { "schema": { "$ref": "#/entities/Invitation" } },
+      "units": { "schema": { "$ref": "#/entities/Unit" } },
+      "documents": { "schema": { "$ref": "#/entities/Document" } },
+      "report_index": { "schema": { "$ref": "#/entities/ReportIndex" } },
+      "admin_data": {
+        "documents": {
+          "summary": { "schema": { "$ref": "#/entities/AdminDashboardSummary" } }
+        }
+      }
+    }
   }
 }
+
+    

@@ -94,6 +94,7 @@ export async function createProjectFromWizard(
         batch.set(memberRef, {
           role: member.role,
           userName: user.name,
+          position: user.position,
           createdAt: serverTimestamp(),
         });
       }
@@ -109,10 +110,13 @@ export async function createProjectFromWizard(
     batch.set(actRef, {
       name: act.name,
       code: act.code,
+      description: act.description,
       totalWork: 0,
       createdAt: serverTimestamp(),
     });
   }
+  
+  const allZones = formData.zones || [];
 
   for (const sa of formData.subActivities) {
     const actRef = activityMap.get(sa.activityCode);
@@ -121,11 +125,20 @@ export async function createProjectFromWizard(
     const saRef = doc(collection(db, actRef.path, 'subactivities'));
     batch.set(saRef, {
       name: sa.name,
+      BoQ: sa.BoQ,
+      description: sa.description,
       unit: sa.unit,
       totalWork: sa.totalWork,
       zoneQuantities: sa.zoneQuantities,
       createdAt: serverTimestamp(),
     });
+
+    // Initialize progressByZone map for the summary
+    const progressByZone = allZones.reduce((acc: any, zone: any) => {
+        acc[zone.name] = { doneWork: 0, pendingWork: 0 };
+        return acc;
+    }, {});
+
 
     // Sub-activity specific dashboard entry
     const saSummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${saRef.id}`);
@@ -133,8 +146,14 @@ export async function createProjectFromWizard(
       totalWork: sa.totalWork,
       doneWork: 0,
       pendingWork: 0,
+      workGradeA: 0,
+      workGradeB: 0,
+      workGradeC: 0,
       unit: sa.unit,
+      activityName: activityMap.get(sa.activityCode)?.id, // This is incorrect, should be activity name
       subActivityName: sa.name,
+      BoQ: sa.BoQ,
+      progressByZone: progressByZone,
       updatedAt: serverTimestamp(),
     });
   }
@@ -154,6 +173,11 @@ export async function createDailyReport(data: any): Promise<void> {
         const reportRef = doc(collection(db, `projects/${projectId}/daily_reports`));
         const diaryDate = format(reportDate, 'yyyyMMdd');
 
+        // 1. Get all documents that will be read/written to
+        const summaryRefs = items.map((item: ReportItem) => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
+        const summarySnaps = await Promise.all(summaryRefs.map((ref: DocumentReference) => transaction.get(ref)));
+
+        // 2. Perform all writes
         transaction.set(reportRef, {
             ...header,
             reportDate,
@@ -162,16 +186,29 @@ export async function createDailyReport(data: any): Promise<void> {
             createdAt: serverTimestamp(),
         });
 
-        for (const item of items) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const summarySnap = summarySnaps[i];
+
             const itemRef = doc(collection(db, reportRef.path, 'items'));
             transaction.set(itemRef, item);
             
-            // Update Pending Work in Dashboard
-            const summaryRef = doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`);
-            transaction.update(summaryRef, {
-                pendingWork: increment(item.quantity),
-                updatedAt: serverTimestamp()
-            });
+            if (summarySnap.exists()) {
+                const zoneName = item.zoneName;
+                const updateData: { [key: string]: any } = {
+                    pendingWork: increment(item.quantity),
+                    updatedAt: serverTimestamp()
+                };
+
+                // Use dot notation for nested map updates
+                if (zoneName) {
+                    updateData[`progressByZone.${zoneName}.pendingWork`] = increment(item.quantity);
+                }
+                
+                transaction.update(summarySnap.ref, updateData);
+            } else {
+                 console.error(`SubActivitySummary for ID ${item.subActivityId} not found. Cannot update pending work.`);
+            }
         }
     });
 }
@@ -179,7 +216,8 @@ export async function createDailyReport(data: any): Promise<void> {
 /**
  * GLOBAL DATA HELPERS (Companies, Units, Equipment)
  */
-export async function addCompany(data: Partial<Company>): Promise<void> {
+export async function addCompany(auth: Auth, data: Partial<Company>): Promise<void> {
+  if (!auth.currentUser) throw new Error("Authentication required.");
   const ref = doc(collection(getDb(), 'companies'));
   await setDoc(ref, { ...data, archived: false, createdAt: serverTimestamp() });
 }
@@ -192,12 +230,6 @@ export async function deleteUnit(unitId: string): Promise<void> {
   await deleteDoc(doc(getDb(), 'units', unitId));
 }
 
-/**
- * Creates or overwrites a user profile document.
- * @param auth - The Firebase Auth instance (used for checking admin/permissions in a real app).
- * @param uid - The UID of the user whose profile is being created.
- * @param data - The user profile data.
- */
 export async function createUserProfile(
   auth: Auth,
   uid: string,
@@ -206,27 +238,13 @@ export async function createUserProfile(
   if (!auth.currentUser) {
     throw new Error('User must be authenticated to create a user profile.');
   }
-
   if (!uid) {
     throw new Error('A valid User ID (UID) must be provided.');
   }
-
   const userProfileRef = doc(getDb(), `users/${uid}`);
-  const newUserProfile = {
-    ...data,
-    createdAt: serverTimestamp(), // Optional: to track when the profile was made
-  };
-
-  await setDoc(userProfileRef, newUserProfile, {});
+  await setDoc(userProfileRef, { ...data, createdAt: serverTimestamp() }, {});
 }
 
-
-/**
- * Updates an existing company in the global collection.
- * @param auth - The Firebase Auth instance.
- * @param companyId - The ID of the company to update.
- * @param data - The data to update.
- */
 export async function updateCompany(
   auth: Auth,
   companyId: string,
@@ -235,81 +253,35 @@ export async function updateCompany(
   if (!auth.currentUser) {
     throw new Error('User must be authenticated to update a company.');
   }
-
   const companyDocRef = doc(getDb(), 'companies', companyId);
-  await updateDoc(companyDocRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-  });
+  await updateDoc(companyDocRef, { ...data, updatedAt: serverTimestamp() });
 }
 
-type AddEquipmentTypeData = Omit<EquipmentType, 'id'>;
-
-/**
- * Adds a new equipment type to the global list.
- * @param data - The equipment type data to add.
- */
-export async function addEquipmentType(data: AddEquipmentTypeData): Promise<void> {
-  const equipmentTypesCollectionRef = collection(getDb(), 'equipment_names');
-  const newEquipmentType = {
-    ...data,
-    createdAt: serverTimestamp(),
-  };
-  await addDoc(equipmentTypesCollectionRef, newEquipmentType);
+export async function addEquipmentType(data: Omit<EquipmentType, 'id'>): Promise<void> {
+  await addDoc(collection(getDb(), 'equipment_names'), { ...data, createdAt: serverTimestamp() });
 }
 
-/**
- * Deletes an equipment type from the global list.
- * @param equipmentTypeId - The ID of the equipment type to delete.
- */
 export async function deleteEquipmentType(equipmentTypeId: string): Promise<void> {
-  if (!equipmentTypeId) {
-    throw new Error('A valid Equipment Type ID must be provided.');
-  }
-  const equipmentTypeDocRef = doc(getDb(), 'equipment_names', equipmentTypeId);
-  await deleteDoc(equipmentTypeDocRef);
+  if (!equipmentTypeId) throw new Error('A valid Equipment Type ID must be provided.');
+  await deleteDoc(doc(getDb(), 'equipment_names', equipmentTypeId));
 }
 
-type AddEquipmentData = Omit<Equipment, 'id'>;
-
-/**
- * Adds a new piece of equipment to the global inventory.
- * @param data - The equipment data to add.
- */
-export async function addEquipment(data: AddEquipmentData): Promise<void> {
-  const equipmentCollectionRef = collection(getDb(), 'equipment');
-  const newEquipment = {
-    ...data,
-    createdAt: serverTimestamp(),
-  };
-  await addDoc(equipmentCollectionRef, newEquipment);
+export async function addEquipment(data: Omit<Equipment, 'id'>): Promise<void> {
+  await addDoc(collection(getDb(), 'equipment'), { ...data, createdAt: serverTimestamp() });
 }
 
-/**
- * Adds multiple pieces of equipment in a single batch.
- * @param equipmentList - An array of equipment data to add.
- */
 export async function batchAddEquipment(equipmentList: Omit<Equipment, 'id'>[]): Promise<void> {
   const db = getDb();
   const batch = writeBatch(db);
   const equipmentCollectionRef = collection(db, 'equipment');
-
   equipmentList.forEach(equipmentData => {
-    const docRef = doc(equipmentCollectionRef); // Create a new doc with a random ID
-    batch.set(docRef, equipmentData);
+    const docRef = doc(equipmentCollectionRef);
+    batch.set(docRef, { ...equipmentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   });
-
   await batch.commit();
 }
 
-
-// Add a new function for creating projects
-type AddProjectData = Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'totalWork' | 'doneWork' | 'approvedWork'>;
-
-/**
- * Adds a new project to the global collection.
- */
-export async function addProject(data: AddProjectData): Promise<void> {
+export async function addProject(data: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'totalWork' | 'doneWork' | 'approvedWork'>): Promise<void> {
   const projectsCollectionRef = collection(getDb(), 'projects');
   const newProject = {
     ...data,
@@ -322,65 +294,35 @@ export async function addProject(data: AddProjectData): Promise<void> {
   await addDoc(projectsCollectionRef, newProject);
 }
 
-/**
- * Updates an existing project in the global collection.
- * @param projectId - The ID of the project to update.
- * @param data - The data to update.
- */
 export async function updateProject(
   projectId: string,
   data: Partial<Project>
 ): Promise<void> {
   const projectDocRef = doc(getDb(), 'projects', projectId);
-  await updateDoc(projectDocRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-  });
+  await updateDoc(projectDocRef, { ...data, updatedAt: serverTimestamp() });
 }
 
-type CreateInvitationData = Omit<Invitation, 'id' | 'code' | 'status' | 'createdAt'>;
-
-/**
- * Creates an invitation for a new user.
- */
-export async function createInvitation(data: CreateInvitationData): Promise<void> {
+export async function createInvitation(data: Omit<Invitation, 'id' | 'code' | 'status' | 'createdAt'>): Promise<void> {
   const invitationsCollectionRef = collection(getDb(), 'invitations');
   const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-
   const newInvitation: Omit<Invitation, 'id'> = {
     ...data,
     code,
     status: 'pending',
     createdAt: serverTimestamp(),
   };
-
   await addDoc(invitationsCollectionRef, newInvitation);
 }
 
-/**
- * Updates an existing user in the global collection.
- * @param userId - The ID of the user to update.
- * @param data - The data to update.
- */
 export async function updateUser(
   userId: string,
   data: Partial<Omit<User, 'id' | 'email'>>
 ): Promise<void> {
   const userDocRef = doc(getDb(), 'users', userId);
-  await updateDoc(userDocRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-  });
+  await updateDoc(userDocRef, { ...data, updatedAt: serverTimestamp() });
 }
 
-type AddActivityData = Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate' >;
-
-/**
- * Adds a new activity to a project's subcollection.
- * @param projectId The ID of the parent project.
- * @param data The activity data to add.
- */
-export async function addActivity(projectId: string, data: AddActivityData): Promise<void> {
+export async function addActivity(projectId: string, data: Omit<Activity, 'id' | 'totalWork' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate' >): Promise<void> {
     if (!projectId) throw new Error("A valid Project ID must be provided.");
     const activitiesCollectionRef = collection(getDb(), `projects/${projectId}/activities`);
     const newActivity = {
@@ -394,23 +336,12 @@ export async function addActivity(projectId: string, data: AddActivityData): Pro
     await addDoc(activitiesCollectionRef, newActivity);
 }
 
-/**
- * Updates an existing activity within a project.
- * @param projectId The ID of the parent project.
- * @param activityId The ID of the activity to update.
- * @param data The partial data to update.
- */
 export async function updateActivity(projectId: string, activityId: string, data: Partial<Activity>): Promise<void> {
     if (!projectId || !activityId) throw new Error("Project ID and Activity ID must be provided.");
     const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
     await updateDoc(activityDocRef, { ...data, updatedAt: serverTimestamp() });
 }
 
-/**
- * Deletes an activity from a project.
- * @param projectId The ID of the parent project.
- * @param activityId The ID of the activity to delete.
- */
 export async function deleteActivity(projectId: string, activityId: string): Promise<void> {
     if (!projectId || !activityId) throw new Error("Project ID and Activity ID must be provided.");
     const activityDocRef = doc(getDb(), `projects/${projectId}/activities`, activityId);
@@ -418,21 +349,12 @@ export async function deleteActivity(projectId: string, activityId: string): Pro
 }
 
 
-type AddSubActivityData = Omit<SubActivity, 'id' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'progressByZone' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate'>;
-
-/**
- * Adds a new sub-activity (BoQ item) to an activity and creates its summary document.
- * @param projectId The ID of the parent project.
- * @param activityId The ID of the parent activity.
- * @param data The sub-activity data.
- */
-export async function addSubActivity(projectId: string, activityId: string, data: AddSubActivityData): Promise<void> {
+export async function addSubActivity(projectId: string, activityId: string, data: Omit<SubActivity, 'id' | 'doneWork' | 'approvedWork' | 'pendingWork' | 'workGradeA' | 'workGradeB' | 'workGradeC' | 'progressByZone' | 'plannedQuantity' | 'plannedStartDate' | 'plannedEndDate'>): Promise<void> {
     if (!projectId || !activityId) throw new Error("Project and Activity ID must be provided.");
     
     const db = getDb();
 
     await runTransaction(db, async (transaction) => {
-        // Get parent activity to denormalize name
         const activityRef = doc(db, `projects/${projectId}/activities`, activityId);
         const activitySnap = await transaction.get(activityRef);
         if (!activitySnap.exists()) {
@@ -440,7 +362,6 @@ export async function addSubActivity(projectId: string, activityId: string, data
         }
         const activityName = activitySnap.data().name;
 
-        // 1. Create the SubActivity document
         const subActivityRef = doc(collection(db, `projects/${projectId}/activities/${activityId}/subactivities`));
         const newSubActivity = {
             ...data,
@@ -452,7 +373,6 @@ export async function addSubActivity(projectId: string, activityId: string, data
         };
         transaction.set(subActivityRef, newSubActivity);
         
-        // 2. Create the corresponding SubActivitySummary document
         const subActivitySummaryRef = doc(db, `projects/${projectId}/dashboards/${subActivityRef.id}`);
         const summaryData: SubActivitySummary = {
             totalWork: data.totalWork,
@@ -469,7 +389,6 @@ export async function addSubActivity(projectId: string, activityId: string, data
         };
         transaction.set(subActivitySummaryRef, summaryData);
 
-        // 3. Update the project-level summary
         const projectSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
         transaction.update(projectSummaryRef, {
             subActivityCount: increment(1)
@@ -478,46 +397,26 @@ export async function addSubActivity(projectId: string, activityId: string, data
 }
 
 
-/**
- * Updates an existing sub-activity.
- * @param projectId The ID of the parent project.
- * @param activityId The ID of the parent activity.
- * @param subActivityId The ID of the sub-activity to update.
- * @param data The partial data for the sub-activity.
- */
 export async function updateSubActivity(projectId: string, activityId: string, subActivityId: string, data: Partial<SubActivity>): Promise<void> {
     if (!projectId || !activityId || !subActivityId) throw new Error("Project, Activity, and Sub-Activity IDs are required.");
     const subActivityDocRef = doc(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`, subActivityId);
     await updateDoc(subActivityDocRef, { ...data, updatedAt: serverTimestamp() });
 }
 
-/**
- * Deletes a sub-activity.
- * @param projectId The ID of the parent project.
- * @param activityId The ID of the parent activity.
- * @param subActivityId The ID of the sub-activity to delete.
- */
 export async function deleteSubActivity(projectId: string, activityId: string, subActivityId: string): Promise<void> {
     if (!projectId || !activityId || !subActivityId) throw new Error("Project, Activity, and Sub-Activity IDs are required.");
     const subActivityDocRef = doc(getDb(), `projects/${projectId}/activities/${activityId}/subactivities`, subActivityId);
     await deleteDoc(subActivityDocRef);
 }
 
-
-/**
- * Approves a daily report and updates all relevant progress metrics.
- * This is a conceptual function that contains the logic for approvals.
- */
 export async function approveDailyReport(projectId: string, reportId: string, grade: 'A' | 'B' | 'C') {
     const db = getDb();
     
     await runTransaction(db, async (transaction) => {
-        // --- 1. READS ---
         const reportRef = doc(db, `projects/${projectId}/daily_reports/${reportId}`);
         const reportSnap = await transaction.get(reportRef);
 
         if (!reportSnap.exists() || reportSnap.data().status === 'Approved') {
-            // Either report doesn't exist or has already been approved.
             return;
         }
 
@@ -525,14 +424,12 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
         const itemsSnap = await getDocs(itemsQuery);
         const reportItems = itemsSnap.docs.map(d => d.data() as ReportItem);
         
-        // Get all related summary documents
         const subActivitySummaryRefs = reportItems.map(item => doc(db, `projects/${projectId}/dashboards/${item.subActivityId}`));
         const subActivitySummarySnaps = await Promise.all(subActivitySummaryRefs.map(ref => transaction.get(ref)));
 
         const overallSummaryRef = doc(db, `projects/${projectId}/dashboards/summary`);
         const overallSummarySnap = await transaction.get(overallSummaryRef);
 
-        // --- 2. LOGIC ---
         let totalProgressChange = 0;
 
         for (let i = 0; i < reportItems.length; i++) {
@@ -543,7 +440,6 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
 
             const summaryData = summarySnap.data() as SubActivitySummary;
             
-            // Calculate progress change for this item
             const oldProgress = summaryData.totalWork > 0 ? (summaryData.doneWork / summaryData.totalWork) * 100 : 0;
             const newDoneWork = (summaryData.doneWork || 0) + item.quantity;
             const newProgress = summaryData.totalWork > 0 ? (newDoneWork / summaryData.totalWork) * 100 : 0;
@@ -551,26 +447,30 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
             totalProgressChange += (newProgress - oldProgress);
         }
 
-        // --- 3. WRITES ---
-        // Mark report as approved
         transaction.update(reportRef, { status: 'Approved', updatedAt: serverTimestamp() });
 
-        // Update each sub-activity summary
         for(let i = 0; i < reportItems.length; i++) {
             const item = reportItems[i];
             const summaryRef = subActivitySummaryRefs[i];
             if (!subActivitySummarySnaps[i].exists()) continue;
             
             const gradeField = `workGrade${grade}`;
-            transaction.update(summaryRef, {
+            const zoneName = item.zoneName;
+            
+            const updateData: { [key: string]: any } = {
                 pendingWork: increment(-item.quantity),
                 doneWork: increment(item.quantity),
                 [gradeField]: increment(item.quantity),
                 updatedAt: serverTimestamp()
-            });
+            };
+
+            if (zoneName) {
+                updateData[`progressByZone.${zoneName}.pendingWork`] = increment(-item.quantity);
+                updateData[`progressByZone.${zoneName}.doneWork`] = increment(item.quantity);
+            }
+            transaction.update(summaryRef, updateData);
         }
         
-        // Update the single top-level dashboard summary
         if (overallSummarySnap.exists()) {
             const overallSummaryData = overallSummarySnap.data() as ProjectDashboardSummary;
             const newTotalProgressSum = (overallSummaryData.totalProgressSum || 0) + totalProgressChange;
@@ -579,32 +479,23 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
             transaction.update(overallSummaryRef, {
                 totalProgressSum: newTotalProgressSum,
                 overallProgress: newOverallProgress,
-                lastReportAt: serverTimestamp(), // Use approval time as last report time
+                lastReportAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
         }
     });
 }
 
-
-/**
- * Scans all daily reports and recalculates all sub-activity summaries from scratch.
- * This is a developer tool to fix data inconsistencies.
- */
 export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChecked: number; summariesFixed: number }> {
     const db = getDb();
     
-    // A map to hold the "correct" calculated values for each summary
-    const calculatedSummaries: Map<string, Omit<SubActivitySummary, 'totalWork' | 'unit' | 'activityName' | 'subActivityName' | 'BoQ'>> = new Map();
+    const calculatedSummaries: Map<string, Partial<SubActivitySummary>> = new Map();
 
-    // 1. Aggregate all data from all daily reports
     const reportsQuery = collectionGroup(db, 'daily_reports');
     const reportsSnapshot = await getDocs(reportsQuery);
 
     for (const reportDoc of reportsSnapshot.docs) {
         const report = reportDoc.data() as DailyReport;
-        
-        // We only care about reports that have been processed.
         const isApproved = report.status === 'Approved';
 
         const itemsSnapshot = await getDocs(collection(reportDoc.ref, 'items'));
@@ -612,7 +503,6 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
             const item = itemDoc.data() as ReportItem;
             const summaryId = item.subActivityId;
 
-            // Initialize if not present
             if (!calculatedSummaries.has(summaryId)) {
                 calculatedSummaries.set(summaryId, {
                     doneWork: 0,
@@ -620,24 +510,30 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
                     workGradeA: 0,
                     workGradeB: 0,
                     workGradeC: 0,
-                    updatedAt: serverTimestamp(),
+                    progressByZone: {}
                 });
             }
 
             const current = calculatedSummaries.get(summaryId)!;
-            
+            const zoneName = item.zoneName;
+
             if (isApproved) {
-                // This is a placeholder for grade. In a real scenario, the grade would be on the report or item.
-                // For now, let's assume 'A' for all approved items for the fix.
-                current.doneWork += item.quantity;
-                current.workGradeA += item.quantity;
+                current.doneWork = (current.doneWork || 0) + item.quantity;
+                current.workGradeA = (current.workGradeA || 0) + item.quantity; // Assuming Grade A for now
+                 if (zoneName) {
+                    if (!current.progressByZone![zoneName]) current.progressByZone![zoneName] = { doneWork: 0, pendingWork: 0 };
+                    current.progressByZone![zoneName].doneWork += item.quantity;
+                }
             } else { // 'Pending'
-                current.pendingWork += item.quantity;
+                current.pendingWork = (current.pendingWork || 0) + item.quantity;
+                 if (zoneName) {
+                    if (!current.progressByZone![zoneName]) current.progressByZone![zoneName] = { doneWork: 0, pendingWork: 0 };
+                    current.progressByZone![zoneName].pendingWork += item.quantity;
+                }
             }
         }
     }
 
-    // 2. Compare and fix all SubActivitySummary documents
     let summariesChecked = 0;
     let summariesFixed = 0;
     const batch = writeBatch(db);
@@ -646,44 +542,46 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
     const summariesSnapshot = await getDocs(summariesQuery);
 
     for (const summaryDoc of summariesSnapshot.docs) {
-        // Skip the project-level 'summary' document
         if (summaryDoc.id === 'summary') continue;
         
         summariesChecked++;
         const summaryId = summaryDoc.id;
         const currentSummary = summaryDoc.data() as SubActivitySummary;
-        const calculated = calculatedSummaries.get(summaryId);
+        const calculated = calculatedSummaries.get(summaryId) || { doneWork: 0, pendingWork: 0, workGradeA: 0, workGradeB: 0, workGradeC: 0, progressByZone: {} };
 
-        // If we have calculated values for this summary, check for inconsistency
-        if (calculated) {
-            if (currentSummary.doneWork !== calculated.doneWork ||
-                currentSummary.pendingWork !== calculated.pendingWork ||
-                currentSummary.workGradeA !== calculated.workGradeA) {
-                
-                summariesFixed++;
-                batch.update(summaryDoc.ref, {
-                    ...calculated,
-                    updatedAt: serverTimestamp(),
-                });
-            }
-             // Remove from map to track summaries that exist in reports but not in dashboards
-            calculatedSummaries.delete(summaryId);
-        } else {
-            // This summary exists, but no reports reference it. Reset its values.
-             if (currentSummary.doneWork !== 0 || currentSummary.pendingWork !== 0) {
-                 summariesFixed++;
-                 batch.update(summaryDoc.ref, {
-                    doneWork: 0,
-                    pendingWork: 0,
-                    workGradeA: 0,
-                    workGradeB: 0,
-                    workGradeC: 0,
-                    updatedAt: serverTimestamp(),
-                 });
-             }
+        let needsFix = false;
+        if (currentSummary.doneWork !== calculated.doneWork ||
+            currentSummary.pendingWork !== calculated.pendingWork) {
+            needsFix = true;
         }
-    }
+        
+        // Also check zone data
+        const currentZones = Object.keys(currentSummary.progressByZone || {});
+        const calculatedZones = Object.keys(calculated.progressByZone || {});
+        if (currentZones.length !== calculatedZones.length) {
+            needsFix = true;
+        } else {
+            for (const zone of currentZones) {
+                if (!calculated.progressByZone?.[zone] ||
+                    currentSummary.progressByZone?.[zone].doneWork !== calculated.progressByZone?.[zone].doneWork ||
+                    currentSummary.progressByZone?.[zone].pendingWork !== calculated.progressByZone?.[zone].pendingWork) {
+                    needsFix = true;
+                    break;
+                }
+            }
+        }
 
+
+        if (needsFix) {
+            summariesFixed++;
+            batch.update(summaryDoc.ref, {
+                ...calculated,
+                updatedAt: serverTimestamp(),
+            });
+        }
+        calculatedSummaries.delete(summaryId);
+    }
+    
     if (calculatedSummaries.size > 0) {
         console.warn(`${calculatedSummaries.size} summaries had report data but no corresponding dashboard document. These were not fixed.`);
     }
@@ -694,3 +592,5 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
     
     return { summariesChecked, summariesFixed };
 }
+
+    

@@ -1,5 +1,6 @@
 
 
+
 // Type definitions based on the new docs/backend.json
 
 // Top-level entities
@@ -244,6 +245,7 @@ export interface ReportItem {
     activityId: string;
     subActivityId: string;
     zoneId: string;
+    zoneName: string;
     quantity: number;
     remarks?: string;
     generalForeman?: string;
@@ -306,6 +308,7 @@ export interface SubActivitySummary {
     activityName: string;
     subActivityName: string;
     BoQ: string;
+    progressByZone?: { [zoneName: string]: { doneWork: number; pendingWork: number } };
     updatedAt: any; // Firestore Timestamp
 }
 
@@ -346,3 +349,5 @@ export interface EquipmentType {
   name: string;
   createdAt?: any;
 }
+
+    

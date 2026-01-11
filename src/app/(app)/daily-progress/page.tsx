@@ -37,7 +37,6 @@ type StagedReportItem = Omit<ReportItem, 'id'> & {
     activityName: string;
     subActivityName: string;
     subActivityBoQ: string;
-    zoneName: string;
     unit: string;
 };
 
@@ -119,6 +118,7 @@ export default function DailyProgressPage() {
         activityId: selectedActivity.id,
         subActivityId: selectedSubActivity.id,
         zoneId: selectedZone.id,
+        zoneName: selectedZone.name,
         quantity: Number(quantity),
         generalForeman: generalForeman,
         foreman: foreman,
@@ -129,7 +129,6 @@ export default function DailyProgressPage() {
         activityName: selectedActivity.name,
         subActivityName: selectedSubActivity.name,
         subActivityBoQ: selectedSubActivity.BoQ,
-        zoneName: selectedZone.name,
         unit: selectedSubActivity.unit,
     };
 
