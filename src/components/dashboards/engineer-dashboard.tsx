@@ -15,7 +15,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 
 import type { User, Equipment, SubActivitySummary } from '@/lib/types';
@@ -23,6 +22,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, collectionGroup } from 'firebase/firestore';
 import { HardHat, LoaderCircle } from 'lucide-react';
 import { useFirestoreData } from '@/lib/hooks/use-firestore-data';
+import { Label } from '@/components/ui/label';
 
 const GradeChart = ({ data }: { data: any }) => {
     const chartData = [
@@ -47,11 +47,11 @@ const GradeChart = ({ data }: { data: any }) => {
         return (
           <div className="p-2 text-sm bg-background border rounded-md shadow-lg">
             <p className="font-bold mb-2">Work Grades</p>
-            <p style={{ color: 'hsl(var(--chart-1))' }}>Grade A: {payload[0].payload.gradeAQty.toFixed(2)} ({payload[0].value}%)</p>
-            <p style={{ color: 'hsl(var(--chart-2))' }}>Grade B: {payload[1].payload.gradeBQty.toFixed(2)} ({payload[1].value}%)</p>
-            <p style={{ color: 'hsl(var(--chart-5))' }}>Grade C: {payload[2].payload.gradeCQty.toFixed(2)} ({payload[2].value}%)</p>
-            <p style={{ color: 'hsl(var(--chart-3))' }}>Pending: {payload[3].payload.pendingQty.toFixed(2)} ({payload[3].value}%)</p>
-            <p style={{ color: '#a0a0a0' }}>Remaining: {payload[4].payload.remainingQty.toFixed(2)} ({payload[4].value}%)</p>
+            <p style={{ color: 'hsl(var(--chart-1))' }}>Grade A: {payload[0].payload.gradeAQty.toFixed(2)} ({payload[0].value.toFixed(2)}%)</p>
+            <p style={{ color: 'hsl(var(--chart-2))' }}>Grade B: {payload[1].payload.gradeBQty.toFixed(2)} ({payload[1].value.toFixed(2)}%)</p>
+            <p style={{ color: 'hsl(var(--chart-4))' }}>Grade C: {payload[2].payload.gradeCQty.toFixed(2)} ({payload[2].value.toFixed(2)}%)</p>
+            <p style={{ color: 'hsl(var(--chart-3))' }}>Pending: {payload[3].payload.pendingQty.toFixed(2)} ({payload[3].value.toFixed(2)}%)</p>
+            <p style={{ color: '#a0a0a0' }}>Remaining: {payload[4].payload.remainingQty.toFixed(2)} ({payload[4].value.toFixed(2)}%)</p>
           </div>
         );
       }
@@ -59,16 +59,16 @@ const GradeChart = ({ data }: { data: any }) => {
     };
 
     return (
-        <ResponsiveContainer width="100%" height={100}>
+        <ResponsiveContainer width="100%" height={20}>
             <BarChart data={chartData} layout="vertical" stackOffset="expand">
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="name" hide />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip />} cursor={{fill: 'hsl(var(--muted))'}} />
                 <Bar dataKey="gradeA" stackId="a" fill="hsl(var(--chart-1))" />
                 <Bar dataKey="gradeB" stackId="a" fill="hsl(var(--chart-2))" />
-                <Bar dataKey="gradeC" stackId="a" fill="hsl(var(--chart-5))" />
+                <Bar dataKey="gradeC" stackId="a" fill="hsl(var(--chart-4))" />
                 <Bar dataKey="pending" stackId="a" fill="hsl(var(--chart-3))" />
-                <Bar dataKey="remaining" stackId="a" fill="#a0a0a0" />
+                <Bar dataKey="remaining" stackId="a" fill="#e5e7eb" className="dark:fill-zinc-800" />
             </BarChart>
         </ResponsiveContainer>
     );
@@ -90,8 +90,8 @@ const DoneWorkChart = ({ data }: { data: any }) => {
         return (
           <div className="p-2 text-sm bg-background border rounded-md shadow-lg">
             <p className="font-bold mb-2">Work Status</p>
-            <p style={{ color: 'hsl(var(--chart-1))' }}>Done: {payload[0].payload.doneQty.toFixed(2)} ({payload[0].value}%)</p>
-            <p style={{ color: '#a0a0a0' }}>Remaining: {payload[1].payload.remainingQty.toFixed(2)} ({payload[1].value}%)</p>
+            <p style={{ color: 'hsl(var(--chart-1))' }}>Done: {payload[0].payload.doneQty.toFixed(2)} ({payload[0].value.toFixed(2)}%)</p>
+            <p style={{ color: '#a0a0a0' }}>Remaining: {payload[1].payload.remainingQty.toFixed(2)} ({payload[1].value.toFixed(2)}%)</p>
           </div>
         );
       }
@@ -100,13 +100,13 @@ const DoneWorkChart = ({ data }: { data: any }) => {
 
 
     return (
-        <ResponsiveContainer width="100%" height={100}>
+        <ResponsiveContainer width="100%" height={20}>
             <BarChart data={chartData} layout="vertical" stackOffset="expand">
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="name" hide />
-                <Tooltip content={<CustomTooltip />}/>
+                <Tooltip content={<CustomTooltip />} cursor={{fill: 'hsl(var(--muted))'}}/>
                 <Bar dataKey="done" stackId="a" fill="hsl(var(--chart-1))" />
-                <Bar dataKey="remaining" stackId="a" fill="#a0a0a0" />
+                <Bar dataKey="remaining" stackId="a" fill="#e5e7eb" className="dark:fill-zinc-800" />
             </BarChart>
         </ResponsiveContainer>
     );
@@ -125,8 +125,6 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
 
   const subActivitiesQuery = useMemoFirebase(() => {
       if (projectIds.length === 0) return null;
-      // The 'BoQ' field only exists on SubActivitySummary documents, not the main 'summary' document.
-      // This is the correct way to filter the collection group.
       return query(
         collectionGroup(firestore, 'dashboards'), 
         where('projectId', 'in', projectIds),
@@ -139,7 +137,7 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
   const chartData = useMemo(() => {
     if (!subActivities) return [];
     return subActivities.map(sa => {
-        const total = sa.totalWork || 1; // Avoid division by zero
+        const total = sa.totalWork || 1;
         const done = sa.doneWork || 0;
         const pending = sa.pendingWork || 0;
         const gradeA = sa.workGradeA || 0;
