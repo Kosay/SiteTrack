@@ -11,11 +11,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore } from '@/firebase';
-import { collection, writeBatch, doc } from 'firebase/firestore';
-import { LoaderCircle, Database, ShieldCheck } from 'lucide-react';
-import type { User } from '@/lib/types';
-import { checkAndFixSubActivitySummaries } from '@/lib/firebase-actions';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, writeBatch, doc, getDocs } from 'firebase/firestore';
+import { LoaderCircle, Database, ShieldCheck, Recycle } from 'lucide-react';
+import type { User, Project } from '@/lib/types';
+import { checkAndFixSubActivitySummaries, migrateProjectMembersToUid } from '@/lib/firebase-actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Company ID mapping
 const companyIdMap = {
@@ -73,8 +74,13 @@ const usersToSeed: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'companyId'>[] 
 export default function SeedPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [selectedProject, setSelectedProject] = useState('');
   const { toast } = useToast();
   const firestore = useFirestore();
+
+  const projectsCollection = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsCollection);
 
   const handleSeed = async () => {
     setIsSeeding(true);
@@ -142,6 +148,29 @@ export default function SeedPage() {
     }
   }
 
+  const handleMigration = async () => {
+    if (!selectedProject) {
+      toast({ variant: 'destructive', title: 'No Project Selected', description: 'Please select a project to migrate.' });
+      return;
+    }
+    setIsMigrating(true);
+    try {
+      const result = await migrateProjectMembersToUid(selectedProject);
+      toast({
+        title: "Migration Successful",
+        description: `${result.migratedCount} members in project '${projects?.find(p => p.id === selectedProject)?.name}' were migrated to use UID as document ID.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Migration Failed',
+        description: error.message,
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <header>
@@ -186,6 +215,30 @@ export default function SeedPage() {
                 {isChecking ? 'Checking...' : `Check & Fix Summaries`}
             </Button>
             </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Data Migration</CardTitle>
+            <CardDescription>
+              Fixes older projects by migrating member document IDs from random IDs to user UIDs, ensuring compatibility with new security rules.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row gap-4">
+             {isLoadingProjects ? <LoaderCircle className="animate-spin"/> : (
+              <Select value={selectedProject} onValueChange={setSelectedProject}>
+                <SelectTrigger className="w-full sm:w-[250px]">
+                  <SelectValue placeholder="Select a project to fix..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+             )}
+            <Button onClick={handleMigration} disabled={isMigrating || !selectedProject}>
+              {isMigrating ? <LoaderCircle className="mr-2 animate-spin" /> : <Recycle className="mr-2" />}
+              Fix Project Members
+            </Button>
+          </CardContent>
         </Card>
       </div>
     </div>

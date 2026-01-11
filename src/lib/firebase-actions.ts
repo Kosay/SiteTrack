@@ -19,14 +19,17 @@ import {
   getFirestore,
   addDoc,
   getDoc,
-  type DocumentSnapshot
+  type DocumentSnapshot,
+  query,
+  where
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import type { 
   Company, UserProfile, EquipmentType, Equipment, 
   Project, User, Invitation, Unit, Activity, 
   SubActivity, DailyReport, ReportItem, 
-  ProjectDashboardSummary, SubActivitySummary 
+  ProjectDashboardSummary, SubActivitySummary,
+  ProjectMember 
 } from './types';
 
 // Helper to get Firestore instance
@@ -611,4 +614,55 @@ export async function checkAndFixSubActivitySummaries(): Promise<{
     }
 
     return { summariesChecked, summariesCreated, orphansFound, orphansDeleted };
+}
+
+/**
+ * Migrates project members from a random ID to the user's UID for document IDs.
+ * This aligns older data with current, more secure data structures.
+ */
+export async function migrateProjectMembersToUid(projectId: string): Promise<{ migratedCount: number }> {
+    const db = getDb();
+    const batch = writeBatch(db);
+    let migratedCount = 0;
+
+    // 1. Create a map from user name to UID from the /users collection
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const nameToUidMap = new Map<string, string>();
+    usersSnapshot.forEach(userDoc => {
+        const userData = userDoc.data() as User;
+        if (userData.name) {
+            nameToUidMap.set(userData.name, userDoc.id);
+        }
+    });
+
+    // 2. Get all current members of the project
+    const membersRef = collection(db, `projects/${projectId}/members`);
+    const membersSnapshot = await getDocs(membersRef);
+
+    for (const memberDoc of membersSnapshot.docs) {
+        const memberData = memberDoc.data() as ProjectMember;
+        const oldId = memberDoc.id;
+        
+        // Find the correct UID using the member's name
+        const newUid = nameToUidMap.get(memberData.userName);
+
+        // If a UID is found and it's different from the current doc ID, migrate.
+        if (newUid && newUid !== oldId) {
+            const newMemberRef = doc(db, `projects/${projectId}/members`, newUid);
+            const oldMemberRef = doc(db, `projects/${projectId}/members`, oldId);
+
+            // Set the new document with the correct UID
+            batch.set(newMemberRef, memberData);
+            // Delete the old document with the random ID
+            batch.delete(oldMemberRef);
+            
+            migratedCount++;
+        }
+    }
+
+    if (migratedCount > 0) {
+        await batch.commit();
+    }
+
+    return { migratedCount };
 }
