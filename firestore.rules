@@ -15,8 +15,10 @@ service cloud.firestore {
 
     // --- PROJECT SCOPE ---
     match /projects/{projectId} {
-      // Engineers can list projects they are members of
-      allow get, list: if isProjectMember(projectId);
+      // Allow any signed-in user to see the list of projects,
+      // but only allow members to read the full document details.
+      allow list: if isSignedIn();
+      allow get: if isProjectMember(projectId);
       
       // Project metadata updates (PMs/Directors)
       allow update: if isProjectMember(projectId); 
