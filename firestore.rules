@@ -42,9 +42,12 @@ service cloud.firestore {
         }
       }
 
-      // 3. Project Members (Crucial for the exists() check to work)
+      // 3. Project Members (Crucial for the exists() check to work & Migration)
       match /members/{memberId} {
+        // Allow reading for the exists() check to work for any signed-in user.
         allow read: if isSignedIn();
+        // Allow a project member to manage the member list (for migrations, etc.)
+        allow list, create, delete: if isProjectMember(projectId);
       }
 
       // 4. Activities and Sub-activities (Fix for Integrity Check)
@@ -67,7 +70,7 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read, list: if isSignedIn(); // Allow list for migration tool
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
