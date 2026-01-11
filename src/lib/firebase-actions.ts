@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -523,109 +522,67 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
     });
 }
 
+/**
+ * Finds all sub-activities across all projects and ensures a corresponding
+ * SubActivitySummary document exists. If not, it creates one.
+ */
 export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChecked: number; summariesFixed: number }> {
     const db = getDb();
-    
-    const calculatedSummaries: Map<string, Partial<SubActivitySummary>> = new Map();
-
-    const reportsQuery = collectionGroup(db, 'daily_reports');
-    const reportsSnapshot = await getDocs(reportsQuery);
-
-    for (const reportDoc of reportsSnapshot.docs) {
-        const report = reportDoc.data() as DailyReport;
-        const isApproved = report.status === 'Approved';
-
-        const itemsSnapshot = await getDocs(collection(reportDoc.ref, 'items'));
-        for (const itemDoc of itemsSnapshot.docs) {
-            const item = itemDoc.data() as ReportItem;
-            const summaryId = item.subActivityId;
-
-            if (!calculatedSummaries.has(summaryId)) {
-                calculatedSummaries.set(summaryId, {
-                    doneWork: 0,
-                    pendingWork: 0,
-                    workGradeA: 0,
-                    workGradeB: 0,
-                    workGradeC: 0,
-                    progressByZone: {}
-                });
-            }
-
-            const current = calculatedSummaries.get(summaryId)!;
-            const zoneName = item.zoneName;
-
-            if (isApproved) {
-                current.doneWork = (current.doneWork || 0) + item.quantity;
-                current.workGradeA = (current.workGradeA || 0) + item.quantity; // Assuming Grade A for now
-                 if (zoneName) {
-                    if (!current.progressByZone![zoneName]) current.progressByZone![zoneName] = { doneWork: 0, pendingWork: 0 };
-                    current.progressByZone![zoneName].doneWork += item.quantity;
-                }
-            } else { // 'Pending'
-                current.pendingWork = (current.pendingWork || 0) + item.quantity;
-                 if (zoneName) {
-                    if (!current.progressByZone![zoneName]) current.progressByZone![zoneName] = { doneWork: 0, pendingWork: 0 };
-                    current.progressByZone![zoneName].pendingWork += item.quantity;
-                }
-            }
-        }
-    }
-
+    const batch = writeBatch(db);
     let summariesChecked = 0;
     let summariesFixed = 0;
-    const batch = writeBatch(db);
 
-    const summariesQuery = collectionGroup(db, 'dashboards');
-    const summariesSnapshot = await getDocs(summariesQuery);
+    const projectsSnapshot = await getDocs(collection(db, 'projects'));
 
-    for (const summaryDoc of summariesSnapshot.docs) {
-        if (summaryDoc.id === 'summary') continue;
+    for (const projectDoc of projectsSnapshot.docs) {
+        const projectId = projectDoc.id;
+        const activitiesSnapshot = await getDocs(collection(db, `projects/${projectId}/activities`));
         
-        summariesChecked++;
-        const summaryId = summaryDoc.id;
-        const currentSummary = summaryDoc.data() as SubActivitySummary;
-        const calculated = calculatedSummaries.get(summaryId) || { doneWork: 0, pendingWork: 0, workGradeA: 0, workGradeB: 0, workGradeC: 0, progressByZone: {} };
+        for (const activityDoc of activitiesSnapshot.docs) {
+            const activityData = activityDoc.data() as Activity;
+            const subActivitiesSnapshot = await getDocs(collection(activityDoc.ref, 'subactivities'));
 
-        let needsFix = false;
-        if (currentSummary.doneWork !== calculated.doneWork ||
-            currentSummary.pendingWork !== calculated.pendingWork) {
-            needsFix = true;
-        }
-        
-        // Also check zone data
-        const currentZones = Object.keys(currentSummary.progressByZone || {});
-        const calculatedZones = Object.keys(calculated.progressByZone || {});
-        if (currentZones.length !== calculatedZones.length) {
-            needsFix = true;
-        } else {
-            for (const zone of currentZones) {
-                if (!calculated.progressByZone?.[zone] ||
-                    currentSummary.progressByZone?.[zone].doneWork !== calculated.progressByZone?.[zone].doneWork ||
-                    currentSummary.progressByZone?.[zone].pendingWork !== calculated.progressByZone?.[zone].pendingWork) {
-                    needsFix = true;
-                    break;
+            for (const subActivityDoc of subActivitiesSnapshot.docs) {
+                summariesChecked++;
+                const subActivityId = subActivityDoc.id;
+                const subActivityData = subActivityDoc.data() as SubActivity;
+
+                const summaryRef = doc(db, `projects/${projectId}/dashboards/${subActivityId}`);
+                const summarySnap = await getDoc(summaryRef);
+
+                if (!summarySnap.exists()) {
+                    summariesFixed++;
+                    console.log(`Fixing missing summary for sub-activity: ${subActivityData.name} (${subActivityId})`);
+                    
+                    const zonesSnapshot = await getDocs(collection(db, `projects/${projectId}/zones`));
+                    const progressByZone = zonesSnapshot.docs.reduce((acc: any, zoneDoc: any) => {
+                        acc[zoneDoc.data().name] = { doneWork: 0, pendingWork: 0 };
+                        return acc;
+                    }, {});
+
+                    const summaryData: SubActivitySummary = {
+                        totalWork: subActivityData.totalWork,
+                        doneWork: 0,
+                        pendingWork: 0,
+                        workGradeA: 0,
+                        workGradeB: 0,
+                        workGradeC: 0,
+                        unit: subActivityData.unit,
+                        activityName: activityData.name,
+                        subActivityName: subActivityData.name,
+                        BoQ: subActivityData.BoQ,
+                        progressByZone: progressByZone,
+                        updatedAt: serverTimestamp(),
+                    };
+                    batch.set(summaryRef, summaryData);
                 }
             }
         }
-
-
-        if (needsFix) {
-            summariesFixed++;
-            batch.update(summaryDoc.ref, {
-                ...calculated,
-                updatedAt: serverTimestamp(),
-            });
-        }
-        calculatedSummaries.delete(summaryId);
     }
-    
-    if (calculatedSummaries.size > 0) {
-        console.warn(`${calculatedSummaries.size} summaries had report data but no corresponding dashboard document. These were not fixed.`);
-    }
-    
+
     if (summariesFixed > 0) {
         await batch.commit();
     }
-    
+
     return { summariesChecked, summariesFixed };
 }
