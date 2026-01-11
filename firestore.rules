@@ -2,12 +2,56 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper: Is the user logged in?
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Helper: Is the user a member of this specific project?
+    function isProjectMember(projectId) {
+      return exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    // Project Documents: Anyone signed in can see the project list, 
+    // but only members can see the details.
+    match /projects/{projectId} {
+      allow list: if isSignedIn();
+      allow read: if isSignedIn() && isProjectMember(projectId);
+      
+      // Only Directors or PMs should ideally delete/write to the project root
+      allow write: if isSignedIn() && isProjectMember(projectId); 
+
+      // Daily Reports: Engineers can create, but only Managers should delete.
+      match /daily_reports/{reportId} {
+        allow read, create: if isSignedIn() && isProjectMember(projectId);
+        allow update, delete: if isSignedIn() && isProjectMember(projectId); // Add role check here later
+      }
+
+      // Dashboard Summaries: Read-only for most, updated by the server/transaction logic
+      match /dashboards/{summaryId} {
+        allow read: if isSignedIn() && isProjectMember(projectId);
+        allow write: if isSignedIn() && isProjectMember(projectId);
+      }
+    }
+
+    // Global Collections
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Restrict to Admin UID later
+    }
+    
+    // Allow any authenticated user to perform list operations on collection groups
+    // This is needed for queries like the one on the Engineer Dashboard
+    match /{path=**}/dashboards/{docId} {
+      allow list: if isSignedIn();
+    }
+    
+    // Fallback for other collections like users, units, etc.
     match /{document=**} {
       allow read, write: if isSignedIn();
     }
   }
 }
+
+    

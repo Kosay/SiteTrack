@@ -151,7 +151,7 @@ export default function DailyProgressPage() {
       }
       setIsSubmitting(true);
 
-      // Group items by date
+      // Stage 2: Group staged items by their reportDate
       const reportsByDate = stagedItems.reduce((acc, item) => {
         const dateString = format(item.reportDate, 'yyyy-MM-dd');
         if (!acc[dateString]) {
@@ -163,6 +163,7 @@ export default function DailyProgressPage() {
 
       try {
         let successfulReports = 0;
+        // Call the server function once for each date batch
         for (const dateString in reportsByDate) {
             const itemsForDate = reportsByDate[dateString];
             const date = itemsForDate[0].reportDate;
@@ -176,6 +177,7 @@ export default function DailyProgressPage() {
               cmId: selectedCM,
               reportDate: date,
               items: itemsForDate.map(item => {
+                // Remove the extra fields used for display before sending to the server
                 const {activityName, subActivityName, subActivityBoQ, unit, reportDate, ...rest} = item;
                 return rest;
               }),
@@ -184,7 +186,7 @@ export default function DailyProgressPage() {
         }
         
         toast({ title: 'Reports Submitted', description: `${successfulReports} daily progress reports have been logged.` });
-        setStagedItems([]);
+        setStagedItems([]); // Clear the queue on success
 
       } catch (error: any) {
           toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
@@ -194,6 +196,13 @@ export default function DailyProgressPage() {
   }
 
   const isLoading = isLoadingProjects || isLoadingUsers || isLoadingActivities || isLoadingSubActivities || isLoadingZones;
+  
+  // Calculate the number of unique dates for the submit button label
+  const uniqueDatesCount = useMemo(() => {
+    const dates = new Set(stagedItems.map(item => format(item.reportDate, 'yyyy-MM-dd')));
+    return dates.size;
+  }, [stagedItems]);
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -395,7 +404,7 @@ export default function DailyProgressPage() {
                 <CardFooter>
                     <Button onClick={handleSubmitReport} disabled={isSubmitting || stagedItems.length === 0} className="w-full">
                         {isSubmitting && <LoaderCircle className="mr-2 animate-spin" />}
-                        Submit {isSubmitting ? '...' : `Reports (${Object.keys(stagedItems.reduce((acc, item) => { acc[format(item.reportDate, 'yyyy-MM-dd')] = true; return acc; }, {})).length})`}
+                        Submit {isSubmitting ? '...' : `Reports (${uniqueDatesCount})`}
                         <Send className="ml-2" />
                     </Button>
                 </CardFooter>
