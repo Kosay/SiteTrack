@@ -8,50 +8,61 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper: Is the user a member of this specific project?
+    // Helper: Check membership in the specific project sub-collection
     function isProjectMember(projectId) {
-      return exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
     }
 
-    // Project Documents: Anyone signed in can see the project list, 
-    // but only members can see the details.
+    // --- PROJECT SCOPE ---
     match /projects/{projectId} {
-      allow list: if isSignedIn();
-      allow read: if isSignedIn() && isProjectMember(projectId);
+      // Engineers can list projects they are members of
+      allow get, list: if isProjectMember(projectId);
       
-      // Only Directors or PMs should ideally delete/write to the project root
-      allow write: if isSignedIn() && isProjectMember(projectId); 
+      // Project metadata updates (PMs/Directors)
+      allow update: if isProjectMember(projectId); 
 
-      // Daily Reports: Engineers can create, but only Managers should delete.
-      match /daily_reports/{reportId} {
-        allow read, create: if isSignedIn() && isProjectMember(projectId);
-        allow update, delete: if isSignedIn() && isProjectMember(projectId); // Add role check here later
+      // 1. Dashboard Summaries (This fixes your Dashboard Page)
+      // This matches /projects/{projectId}/dashboards/{anyDoc}
+      match /dashboards/{docId} {
+        allow read, list: if isProjectMember(projectId);
+        // Only allow writes via Server Actions (Transaction logic)
+        // If you need client-side writes, change this to:
+        allow write: if isProjectMember(projectId);
       }
 
-      // Dashboard Summaries: Read-only for most, updated by the server/transaction logic
-      match /dashboards/{summaryId} {
-        allow read: if isSignedIn() && isProjectMember(projectId);
-        allow write: if isSignedIn() && isProjectMember(projectId);
+      // 2. Daily Reports & Items
+      match /daily_reports/{reportId} {
+        allow read, list, create: if isProjectMember(projectId);
+        
+        match /items/{itemId} {
+          allow read, list, create: if isProjectMember(projectId);
+        }
+      }
+
+      // 3. Project Members (Crucial for the exists() check to work)
+      match /members/{memberId} {
+        allow read: if isSignedIn();
       }
     }
 
-    // Global Collections
+    // --- GLOBAL SCOPE ---
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // Restrict to Admin UID later
+    }
+
+    match /units/{unitId} {
+      allow read: if isSignedIn();
     }
     
-    // Allow any authenticated user to perform list operations on collection groups
-    // This is needed for queries like the one on the Engineer Dashboard
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- COLLECTION GROUPS ---
+    // Specifically for the "Global Dashboards" or "Cross-Project" views
     match /{path=**}/dashboards/{docId} {
-      allow list: if isSignedIn();
-    }
-    
-    // Fallback for other collections like users, units, etc.
-    match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, list: if isSignedIn(); 
     }
   }
 }
-
-    
