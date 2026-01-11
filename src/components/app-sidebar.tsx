@@ -17,7 +17,6 @@ import {
   Mail,
   Send,
   Search,
-  ShieldQuestion,
 } from 'lucide-react';
 
 import {
@@ -35,7 +34,6 @@ const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
   { label: 'Daily Progress', href: '/daily-progress', icon: Send },
   { label: 'Daily Report Review', href: '/daily-report-review', icon: Search },
-  { label: 'Safety Validation', href: '/safety-validation', icon: ShieldQuestion },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Companies', href: '/companies', icon: Building2 },
   { label: 'Users', href: '/users', icon: Users },
