@@ -74,6 +74,11 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if isSignedIn();
     }
+    
+    // This is the new rule to allow reading the equipment list.
+    match /equipment/{equipmentId} {
+      allow read, list: if isSignedIn();
+    }
 
     match /units/{unitId} {
       allow read: if isSignedIn();
