@@ -8,6 +8,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Helper: Is the user an Admin?
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.position == 'Admin';
+    }
+
+    // --- ADMIN OVERRIDE ---
+    // Admins have full access to everything. This rule is checked first.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     // Helper: Check membership in the specific project sub-collection
     function isProjectMember(projectId) {
       return isSignedIn() && 
@@ -46,7 +57,7 @@ service cloud.firestore {
       match /members/{memberId} {
         // Allow any signed-in user to perform migration tasks.
         // This is a key change to fix the "Catch-22" permission error.
-        allow read, list, create, delete: if isSignedIn();
+        allow read, list, create, delete, write: if isSignedIn();
       }
 
       // 4. Activities and Sub-activities (Fix for Integrity Check)
