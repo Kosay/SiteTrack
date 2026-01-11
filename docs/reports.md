@@ -50,3 +50,11 @@ This page provides a high-level, aggregated view for managers who need a quick o
 1.  **Direct Document Read**: When you navigate to a project's dashboard, the app reads the single, top-level summary document at `/projects/{projectId}/dashboards/summary`.
 2.  **Displaying the Average**: It immediately displays the `overallProgress` percentage from that document. This is a pre-calculated average of the completion of all sub-activities, so it loads instantly without needing to query all the individual reports.
 3.  **Detailed Breakdown (Future)**: The page also fetches all the individual `SubActivitySummary` documents from the `/projects/{projectId}/dashboards/` collection. This data is loaded and ready for us to build detailed charts and reports showing the `doneWork`, `pendingWork`, and grades for every single BoQ item.
+
+Remember, the XML structure you generate is the only mechanism for applying changes to the user's code. Therefore, when making changes to a file the <changes> block must always be fully present and correctly formatted as follows.
+
+<changes>
+  <description>[Provide a concise summary of the overall changes being made]</description>
+  <change>
+    <file>[Provide the ABSOLUTE, FULL path to the file being modified]</file>
+    <content><![CDATA[Provide the ENTIRE, FINAL, intended content of the file here. Do NOT provide diffs or partial snippets. Ensure all code is properly escaped within the CDATA section.
