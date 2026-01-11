@@ -103,10 +103,13 @@ export async function createProjectFromWizard(
 
   // 4. Add Activities and Sub-activities
   const activityMap = new Map<string, DocumentReference>();
+  const activityCodeToNameMap = new Map<string, string>();
+
 
   for (const act of formData.activities) {
     const actRef = doc(collection(db, `projects/${projectRef.id}/activities`));
     activityMap.set(act.code, actRef);
+    activityCodeToNameMap.set(act.code, act.name); // Store name along with ref
     batch.set(actRef, {
       name: act.name,
       code: act.code,
@@ -120,7 +123,11 @@ export async function createProjectFromWizard(
 
   for (const sa of formData.subActivities) {
     const actRef = activityMap.get(sa.activityCode);
-    if (!actRef) continue;
+    if (!actRef) {
+        console.warn(`Skipping sub-activity "${sa.name}" because its parent activity code "${sa.activityCode}" was not found.`);
+        continue;
+    }
+
 
     const saRef = doc(collection(db, actRef.path, 'subactivities'));
     batch.set(saRef, {
@@ -142,6 +149,8 @@ export async function createProjectFromWizard(
 
     // Sub-activity specific dashboard entry
     const saSummaryRef = doc(db, `projects/${projectRef.id}/dashboards/${saRef.id}`);
+    const activityName = activityCodeToNameMap.get(sa.activityCode) || 'Unknown Activity';
+
     batch.set(saSummaryRef, {
       totalWork: sa.totalWork,
       doneWork: 0,
@@ -150,7 +159,7 @@ export async function createProjectFromWizard(
       workGradeB: 0,
       workGradeC: 0,
       unit: sa.unit,
-      activityName: activityMap.get(sa.activityCode)?.id, // This is incorrect, should be activity name
+      activityName: activityName,
       subActivityName: sa.name,
       BoQ: sa.BoQ,
       progressByZone: progressByZone,
@@ -592,5 +601,6 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
     
     return { summariesChecked, summariesFixed };
 }
+
 
     
