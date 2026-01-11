@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -125,17 +126,10 @@ export default function SeedPage() {
     setIsChecking(true);
     try {
         const result = await checkAndFixSubActivitySummaries();
-        if (result.summariesFixed > 0) {
-            toast({
-                title: "Data Integrity Check Complete",
-                description: `Scan complete. Found and fixed ${result.summariesFixed} missing summary documents.`,
-            });
-        } else {
-             toast({
-                title: "Data Integrity Check Complete",
-                description: `Scan complete. All ${result.summariesChecked} summary documents are present and correct.`,
-            });
-        }
+        toast({
+            title: "Data Integrity Check Complete",
+            description: `Checked: ${result.summariesChecked}, Created: ${result.summariesCreated}, Orphans Deleted: ${result.orphansDeleted}.`,
+        });
 
     } catch (error: any) {
          toast({
@@ -179,7 +173,7 @@ export default function SeedPage() {
             <CardHeader>
             <CardTitle>Data Integrity Check</CardTitle>
             <CardDescription>
-                Scans all sub-activities across all projects and creates any missing summary dashboard documents. Run this if you see "not found" errors in the console.
+                Scans all sub-activities and their corresponding dashboard summaries. Creates missing summaries and deletes orphaned ones.
             </CardDescription>
             </CardHeader>
             <CardContent>

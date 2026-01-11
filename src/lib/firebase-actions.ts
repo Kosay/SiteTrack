@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -523,17 +524,27 @@ export async function approveDailyReport(projectId: string, reportId: string, gr
 }
 
 /**
- * Finds all sub-activities across all projects and ensures a corresponding
- * SubActivitySummary document exists. If not, it creates one.
+ * Performs a two-way sync between SubActivity and SubActivitySummary documents.
+ * 1. Ensures every SubActivity has a corresponding Summary.
+ * 2. Deletes any orphaned Summary documents whose SubActivity has been deleted.
  */
-export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChecked: number; summariesFixed: number }> {
+export async function checkAndFixSubActivitySummaries(): Promise<{
+  summariesChecked: number;
+  summariesCreated: number;
+  orphansFound: number;
+  orphansDeleted: number;
+}> {
     const db = getDb();
     const batch = writeBatch(db);
     let summariesChecked = 0;
-    let summariesFixed = 0;
+    let summariesCreated = 0;
+    let orphansFound = 0;
+    let orphansDeleted = 0;
 
     const projectsSnapshot = await getDocs(collection(db, 'projects'));
+    const allSubActivityIds = new Set<string>();
 
+    // Forward check: Ensure summaries exist for every sub-activity
     for (const projectDoc of projectsSnapshot.docs) {
         const projectId = projectDoc.id;
         const activitiesSnapshot = await getDocs(collection(db, `projects/${projectId}/activities`));
@@ -543,15 +554,16 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
             const subActivitiesSnapshot = await getDocs(collection(activityDoc.ref, 'subactivities'));
 
             for (const subActivityDoc of subActivitiesSnapshot.docs) {
-                summariesChecked++;
                 const subActivityId = subActivityDoc.id;
+                allSubActivityIds.add(subActivityId); // Keep track of all valid IDs
+                summariesChecked++;
                 const subActivityData = subActivityDoc.data() as SubActivity;
 
                 const summaryRef = doc(db, `projects/${projectId}/dashboards/${subActivityId}`);
                 const summarySnap = await getDoc(summaryRef);
 
                 if (!summarySnap.exists()) {
-                    summariesFixed++;
+                    summariesCreated++;
                     console.log(`Fixing missing summary for sub-activity: ${subActivityData.name} (${subActivityId})`);
                     
                     const zonesSnapshot = await getDocs(collection(db, `projects/${projectId}/zones`));
@@ -580,9 +592,23 @@ export async function checkAndFixSubActivitySummaries(): Promise<{ summariesChec
         }
     }
 
-    if (summariesFixed > 0) {
+    // Reverse check: Find and delete orphaned summaries
+    const dashboardSummariesSnapshot = await getDocs(collectionGroup(db, 'dashboards'));
+    for (const summaryDoc of dashboardSummariesSnapshot.docs) {
+        // We only care about sub-activity summaries, not the main 'summary' doc
+        if (summaryDoc.id !== 'summary') {
+            orphansFound++;
+            if (!allSubActivityIds.has(summaryDoc.id)) {
+                orphansDeleted++;
+                console.log(`Deleting orphaned summary document: ${summaryDoc.ref.path}`);
+                batch.delete(summaryDoc.ref);
+            }
+        }
+    }
+
+    if (summariesCreated > 0 || orphansDeleted > 0) {
         await batch.commit();
     }
 
-    return { summariesChecked, summariesFixed };
+    return { summariesChecked, summariesCreated, orphansFound, orphansDeleted };
 }
