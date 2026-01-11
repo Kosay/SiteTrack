@@ -119,7 +119,7 @@ export default function ProjectDashboardPage() {
                     <p className="text-sm text-muted-foreground">Total Sub-Activities</p>
                 </div>
                 <div>
-                    <p className="text-2xl font-bold text-green-600">{summary.totalProgressSum.toFixed(2)}%</p>
+                    <p className="text-2xl font-bold text-green-600">{(summary.totalProgressSum || 0).toFixed(2)}%</p>
                     <p className="text-sm text-muted-foreground">Sum of Percentages</p>
                 </div>
                 <div>
