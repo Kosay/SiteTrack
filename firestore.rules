@@ -45,6 +45,15 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if isSignedIn();
       }
+
+      // 4. Activities and Sub-activities (Fix for Integrity Check)
+      match /activities/{activityId} {
+        allow read, list: if isSignedIn(); // Allow reading activities for admin tools
+        
+        match /subactivities/{subActivityId} {
+           allow read, list: if isSignedIn(); // Allow reading sub-activities for admin tools
+        }
+      }
     }
 
     // --- GLOBAL SCOPE ---
