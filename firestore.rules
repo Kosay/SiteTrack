@@ -44,10 +44,9 @@ service cloud.firestore {
 
       // 3. Project Members (Crucial for the exists() check to work & Migration)
       match /members/{memberId} {
-        // Allow reading for the exists() check to work for any signed-in user.
-        allow read: if isSignedIn();
-        // Allow a project member to manage the member list (for migrations, etc.)
-        allow list, create, delete: if isProjectMember(projectId);
+        // Allow any signed-in user to perform migration tasks.
+        // This is a key change to fix the "Catch-22" permission error.
+        allow read, list, create, delete: if isSignedIn();
       }
 
       // 4. Activities and Sub-activities (Fix for Integrity Check)
