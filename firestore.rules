@@ -68,6 +68,12 @@ service cloud.firestore {
            allow read, list: if isSignedIn(); // Allow reading sub-activities for admin tools
         }
       }
+
+      // 5. Zones (NEW RULE)
+      // This allows project members to read and list zones within a project.
+      match /zones/{zoneId} {
+        allow read, list: if isProjectMember(projectId);
+      }
     }
 
     // --- GLOBAL SCOPE ---
@@ -96,4 +102,3 @@ service cloud.firestore {
     }
   }
 }
-
