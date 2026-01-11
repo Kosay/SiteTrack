@@ -275,7 +275,7 @@
       "description": "A detailed, real-time summary of a single sub-activity's progress.",
       "properties": {
         "totalWork": { "type": "number" },
-        "doneWork": { "type": "number" },
+        "doneWork": { "type": "number", "description": "The total quantity of completed work for this sub-activity. Note: doneWork = workGradeA + workGradeB + workGradeC." },
         "pendingWork": { "type": "number" },
         "workGradeA": { "type": "number" },
         "workGradeB": { "type": "number" },
@@ -390,5 +390,3 @@
     }
   }
 }
-
-    
