@@ -10,7 +10,8 @@ service cloud.firestore {
 
     // Helper: Check membership in the specific project sub-collection
     function isProjectMember(projectId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
     }
 
     // --- PROJECT SCOPE ---

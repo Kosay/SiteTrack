@@ -38,6 +38,57 @@ function getDb(): Firestore {
 }
 
 /**
+ * CLONE PROJECT: Copies structure and re-establishes membership.
+ */
+export async function cloneProject(
+  sourceProjectId: string, 
+  newName: string,
+  currentUserId: string // Ensure the creator is added as a member immediately
+): Promise<string> {
+  const db = getDb();
+  
+  // 1. Fetch Source Data
+  const sourceProjectSnap = await getDoc(doc(db, 'projects', sourceProjectId));
+  if (!sourceProjectSnap.exists()) throw new Error("Source project not found");
+  
+  const sourceData = sourceProjectSnap.data();
+  
+  // 2. Prepare New Project Data
+  const newProjectRef = doc(collection(db, 'projects'));
+  const batch = writeBatch(db);
+
+  batch.set(newProjectRef, {
+    ...sourceData,
+    name: newName,
+    doneWork: 0,
+    approvedWork: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  // 3. IMMEDIATELY add the current user as a Member (Fixes Permission Errors)
+  // This ensures that as soon as the dashboard tries to load, 'exists()' returns true.
+  const memberRef = doc(db, `projects/${newProjectRef.id}/members/${currentUserId}`);
+  batch.set(memberRef, {
+    role: 'director', // or the user's actual role
+    createdAt: serverTimestamp(),
+  });
+
+  // 4. Initialize Dashboard Summary
+  const summaryRef = doc(db, `projects/${newProjectRef.id}/dashboards/summary`);
+  batch.set(summaryRef, {
+    subActivityCount: 0, // Will update as we add sub-activities
+    overallProgress: 0,
+    lastReportAt: null,
+    updatedAt: serverTimestamp(),
+  });
+
+  await batch.commit();
+  return newProjectRef.id;
+}
+
+
+/**
  * PROJECT WIZARD: ATOMIC TRANSACTION
  * This ensures the Project, Members, Zones, and BoQ are created as one single unit.
  */
