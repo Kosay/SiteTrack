@@ -3,12 +3,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import type { ConstructionActivity, ProgressLog, ProgressLogWithActivity, Project } from '@/lib/types';
-import { format, subDays } from 'date-fns';
+import { useFirestore, useUser } from '@/firebase';
+import type { ProgressLogWithActivity, Project } from '@/lib/types';
 
 /**
- * Custom hook to fetch and process construction data from Firestore.
+ * Custom hook to fetch project and user-related data from Firestore.
  */
 export function useFirestoreData() {
   const { user, isUserLoading } = useUser();
@@ -17,18 +16,18 @@ export function useFirestoreData() {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
-  // This hook is now simplified and no longer contains the legacy/failing queries.
-  // It focuses solely on fetching projects for the current user.
-  const { data: activities, isLoading: isLoadingActivities } = useCollection<ConstructionActivity>(null);
-  const { data: rawProgressLogs, isLoading: isLoadingLogs } = useCollection<ProgressLog>(null);
-
   useEffect(() => {
-    if (!user || !firestore) {
-      if(!isUserLoading) {
+    // If the user is still loading or not logged in, we can't fetch their projects.
+    if (isUserLoading || !user) {
+      // Ensure loading is false if we know there's no user.
+      if (!isUserLoading) {
         setIsLoadingProjects(false);
+        setUserProjects([]); // Clear any stale data
       }
       return;
-    };
+    }
+
+    let isMounted = true; // Flag to prevent state updates on unmounted component
 
     const fetchUserProjects = async () => {
       setIsLoadingProjects(true);
@@ -38,65 +37,56 @@ export function useFirestoreData() {
         const projectsSnapshot = await getDocs(projectsQuery);
         const allProjects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
         
+        // For each project, check if the current user is a member.
         const memberChecks = allProjects.map(async (project) => {
           const memberDocRef = doc(firestore, `projects/${project.id}/members/${user.uid}`);
           const memberSnap = await getDoc(memberDocRef);
           return memberSnap.exists() ? project : null;
         });
 
+        // Wait for all membership checks to complete.
         const projectsUserIsMemberOf = (await Promise.all(memberChecks)).filter(p => p !== null) as Project[];
-        setUserProjects(projectsUserIsMemberOf);
+        
+        if (isMounted) {
+          setUserProjects(projectsUserIsMemberOf);
+        }
       } catch (error) {
         console.error("Failed to fetch user projects:", error);
+         if (isMounted) {
+          setUserProjects([]);
+        }
       } finally {
-        setIsLoadingProjects(false);
+         if (isMounted) {
+          setIsLoadingProjects(false);
+        }
       }
     };
 
     fetchUserProjects();
+    
+    return () => {
+      isMounted = false; // Cleanup on unmount
+    };
   }, [user, firestore, isUserLoading]);
 
-  // This progressLogs logic is based on mock data and needs to be updated to use real Firestore data.
-  // For now, we will return an empty array to prevent errors on the Reports page.
-  const progressLogs = useMemo(() => {
-    // Returning an empty array as the underlying data source is incorrect and being removed.
-    return [] as ProgressLogWithActivity[];
-  }, []);
 
+  // The reports page and other components relying on this data have been updated or
+  // are being refactored. Returning empty arrays ensures no downstream errors.
+  const progressLogs: ProgressLogWithActivity[] = [];
+  const activityProgressData: {name: string, progress: number}[] = [];
+  const overallProgressData: {date: string, progress: number}[] = [];
+  const recentLogs: ProgressLogWithActivity[] = [];
 
-  // This derived state will now compute based on the empty progressLogs array, preventing errors.
-  const { activityProgressData, overallProgressData, recentLogs } = useMemo(() => {
-    if (!activities || !progressLogs) {
-      return {
-        activityProgressData: [],
-        overallProgressData: [],
-        recentLogs: [],
-      };
-    }
-
-    const activityProgress = activities.map(activity => ({
-        name: activity.name,
-        progress: 0, // Defaulting to 0 as we don't have real progress data here yet
-    }));
-
-    // Placeholder for overall progress
-    const overallProgress: { date: string; progress: number }[] = [];
-    
-    return {
-      activityProgressData: activityProgress,
-      overallProgressData: overallProgress,
-      recentLogs: progressLogs.slice(0, 3),
-    };
-  }, [activities, progressLogs]);
 
   return {
-    activities: activities || [],
+    // The `activities` collection is no longer needed here as it's fetched directly in the components that use it.
+    activities: [], 
     progressLogs,
     activityProgressData,
     overallProgressData,
     recentLogs,
     userProjects,
-    // The loading state now correctly reflects fetching projects, not legacy data.
+    // The main loading state now correctly reflects the fetching of user-specific projects.
     isLoading: isUserLoading || isLoadingProjects,
   };
 }
