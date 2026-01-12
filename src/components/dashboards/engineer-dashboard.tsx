@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -8,6 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   BarChart,
   Bar,
@@ -17,7 +25,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import type { User, Equipment, SubActivitySummary } from '@/lib/types';
+import type { User, Equipment, SubActivitySummary, Project } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, collectionGroup } from 'firebase/firestore';
 import { HardHat, LoaderCircle } from 'lucide-react';
@@ -114,8 +122,8 @@ const DoneWorkChart = ({ data }: { data: any }) => {
 
 export function EngineerDashboard({ userProfile }: { userProfile: User | null }) {
   const firestore = useFirestore();
-  const { userProjects } = useFirestoreData();
-  const projectIds = useMemo(() => userProjects.map(p => p.id), [userProjects]);
+  const { userProjects, isLoading: isLoadingProjects } = useFirestoreData();
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   const equipmentQuery = useMemoFirebase(() => {
     if (!userProfile) return null;
@@ -124,19 +132,25 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
   const { data: assignedEquipment, isLoading: isLoadingEquipment } = useCollection<Equipment>(equipmentQuery);
 
   const subActivitiesQuery = useMemoFirebase(() => {
+      const projectIds = userProjects.map(p => p.id);
       if (projectIds.length === 0) return null;
       return query(
         collectionGroup(firestore, 'dashboards'), 
         where('projectId', 'in', projectIds),
         where('BoQ', '!=', '')
       );
-  }, [firestore, projectIds]);
+  }, [firestore, userProjects]);
 
   const { data: subActivities, isLoading: isLoadingSubActivities } = useCollection<SubActivitySummary>(subActivitiesQuery);
-
+  
   const chartData = useMemo(() => {
     if (!subActivities) return [];
-    return subActivities.map(sa => {
+
+    const filtered = selectedProject 
+        ? subActivities.filter(sa => (sa as any).projectId === selectedProject) 
+        : subActivities;
+    
+    return filtered.map(sa => {
         const total = sa.totalWork || 1;
         const done = sa.doneWork || 0;
         const pending = sa.pendingWork || 0;
@@ -146,7 +160,7 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
         const remaining = Math.max(0, total - done - pending);
         
         return {
-            id: sa.id,
+            id: (sa as any).id,
             name: sa.subActivityName,
             activityName: sa.activityName,
             BoQ: sa.BoQ,
@@ -165,10 +179,10 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
             remainingPercentage: (remaining / total) * 100,
         }
     })
-  }, [subActivities]);
+  }, [subActivities, selectedProject]);
 
 
-  const isLoading = isLoadingEquipment || isLoadingSubActivities;
+  const isLoading = isLoadingEquipment || isLoadingSubActivities || isLoadingProjects;
 
   return (
     <div className="flex flex-col gap-8">
@@ -200,12 +214,32 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
       
       <Card>
         <CardHeader>
-            <CardTitle>Sub-Activity Progress</CardTitle>
-            <CardDescription>Detailed progress for each Bill of Quantities (BoQ) item across your projects.</CardDescription>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <div>
+                <CardTitle>Sub-Activity Progress</CardTitle>
+                <CardDescription>Detailed progress for each Bill of Quantities (BoQ) item.</CardDescription>
+              </div>
+              <div className="w-full md:w-64">
+                <Label>Filter by Project</Label>
+                 <Select onValueChange={(value) => setSelectedProject(value === 'all' ? null : value)}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {userProjects.map((p: Project) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+              </div>
+            </div>
         </CardHeader>
         <CardContent className="space-y-8">
             {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="animate-spin w-8 h-8" /></div>}
-            {!isLoading && chartData.length === 0 && <p className="text-center text-muted-foreground">No sub-activity data available for your projects.</p>}
+            {!isLoading && chartData.length === 0 && <p className="text-center text-muted-foreground py-10">
+                {selectedProject ? "No sub-activity data for this project." : "No sub-activity data available for your projects."}
+            </p>}
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-12">
                 {chartData.map(sa => (
