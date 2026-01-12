@@ -187,7 +187,7 @@ export default function EditUserPage() {
               </div>
                <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={user.email} disabled />
+                <Input id="email" type="email" value={user.email || ''} disabled />
                  <p className="text-xs text-muted-foreground">Email cannot be changed.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
