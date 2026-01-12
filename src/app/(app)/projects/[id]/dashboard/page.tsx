@@ -38,22 +38,25 @@ export default function ProjectDashboardPage() {
   const [gradeFilter, setGradeFilter] = useState<string>("all");
 
   const projectRef = useMemoFirebase(
-    () => doc(firestore, 'projects', id),
+    () => (id ? doc(firestore, 'projects', id) : null),
     [firestore, id]
   );
   const { data: project, isLoading: isLoadingProject } = useDoc<Project>(projectRef);
 
   const summaryRef = useMemoFirebase(
-    () => doc(firestore, `projects/${id}/dashboards/summary`),
+    () => (id ? doc(firestore, `projects/${id}/dashboards/summary`) : null),
     [firestore, id]
   );
   const { data: summary, isLoading: isLoadingSummary } =
     useDoc<ProjectDashboardSummary>(summaryRef);
 
-  const subActivitiesSummaryRef = useMemoFirebase(
-    () => query(collection(firestore, `projects/${id}/dashboards`), where('BoQ', '!=', '')),
-    [firestore, id]
-  );
+  const subActivitiesSummaryRef = useMemoFirebase(() => {
+    // CRITICAL: If projectId is missing, return NULL. 
+    // useCollection will skip execution if the query is null.
+    if (!id) return null;
+    return query(collection(firestore, `projects/${id}/dashboards`), where('BoQ', '!=', ''));
+  }, [firestore, id]);
+
   const { data: subActivitiesSummary, isLoading: isLoadingSubActivitiesSummary } = 
     useCollection<SubActivitySummary>(subActivitiesSummaryRef);
 

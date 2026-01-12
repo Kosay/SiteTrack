@@ -668,43 +668,51 @@ export async function checkAndFixSubActivitySummaries(): Promise<{
 }
 
 /**
- * Migrates project members from a random ID to the user's UID for document IDs.
- * This aligns older data with current, more secure data structures.
+ * ADMIN MIGRATION: Converts random member IDs to User UIDs.
+ * Requires the current logged-in user to have { position: 'Admin' } in Firestore.
  */
 export async function migrateProjectMembersToUid(projectId: string): Promise<{ migratedCount: number }> {
     const db = getDb();
     const batch = writeBatch(db);
     let migratedCount = 0;
 
-    // 1. Create a map from user name to UID from the /users collection
+    // 1. Fetch all users to create a Name -> UID mapping
+    // This works because rules allow 'list' on /users for signed-in users
     const usersSnapshot = await getDocs(collection(db, 'users'));
     const nameToUidMap = new Map<string, string>();
+    
     usersSnapshot.forEach(userDoc => {
         const userData = userDoc.data() as User;
         if (userData.name) {
-            nameToUidMap.set(userData.name, userDoc.id);
+            nameToUidMap.set(userData.name, userDoc.id); // userDoc.id is the actual UID
         }
     });
 
-    // 2. Get all current members of the project
-    const membersRef = collection(db, `projects/${projectId}/members`);
+    // 2. Access the project members
+    const membersRef = collection(db, 'projects', projectId, 'members');
     const membersSnapshot = await getDocs(membersRef);
 
     for (const memberDoc of membersSnapshot.docs) {
         const memberData = memberDoc.data() as ProjectMember;
-        const oldId = memberDoc.id;
+        const currentDocId = memberDoc.id;
         
-        // Find the correct UID using the member's name
-        const newUid = nameToUidMap.get(memberData.userName);
+        // Find if this member's name matches a UID in our system
+        const correctUid = nameToUidMap.get(memberData.userName);
 
-        // If a UID is found and it's different from the current doc ID, migrate.
-        if (newUid && newUid !== oldId) {
-            const newMemberRef = doc(db, `projects/${projectId}/members`, newUid);
-            const oldMemberRef = doc(db, `projects/${projectId}/members`, oldId);
+        // If we found a UID and the current ID is NOT that UID (it's a random string)
+        if (correctUid && correctUid !== currentDocId) {
+            console.log(`Migrating: ${memberData.userName} (${currentDocId} -> ${correctUid})`);
+            
+            const newMemberRef = doc(db, 'projects', projectId, 'members', correctUid);
+            const oldMemberRef = doc(db, 'projects', projectId, 'members', currentDocId);
 
-            // Set the new document with the correct UID
-            batch.set(newMemberRef, memberData);
-            // Delete the old document with the random ID
+            // Copy data to new UID-based document
+            batch.set(newMemberRef, {
+                ...memberData,
+                updatedAt: serverTimestamp()
+            });
+
+            // Delete the old random-ID document
             batch.delete(oldMemberRef);
             
             migratedCount++;
@@ -713,6 +721,9 @@ export async function migrateProjectMembersToUid(projectId: string): Promise<{ m
 
     if (migratedCount > 0) {
         await batch.commit();
+        console.log(`Success: Migrated ${migratedCount} members.`);
+    } else {
+        console.log("No members required migration.");
     }
 
     return { migratedCount };
