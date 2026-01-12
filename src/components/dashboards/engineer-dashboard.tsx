@@ -132,19 +132,24 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
   const { data: assignedEquipment, isLoading: isLoadingEquipment } = useCollection<Equipment>(equipmentQuery);
 
   const subActivitiesQuery = useMemoFirebase(() => {
-    // CRITICAL GUARD: Wait until we know which projects the user belongs to.
+    // CRITICAL: If projects aren't loaded OR the user has no projects,
+    // return null so useCollection doesn't even try to run.
     if (isLoadingProjects || !userProjects || userProjects.length === 0) {
       return null;
     }
     
     const projectIds = userProjects.map(p => p.id);
     
+    // Extra safety: Firestore 'in' queries fail if the array is empty.
+    if (projectIds.length === 0) return null;
+  
     return query(
       collectionGroup(firestore, 'dashboards'),
       where('BoQ', '!=', ''), // Selects only sub-activity summaries
       where('projectId', 'in', projectIds) // Filters for user's projects
     );
   }, [firestore, userProjects, isLoadingProjects]);
+
 
   const { data: subActivities, isLoading: isLoadingSubActivities } = useCollection<SubActivitySummary>(subActivitiesQuery);
   

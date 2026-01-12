@@ -1,0 +1,109 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks the 'users' collection for the Admin position
+    function isAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.position == 'Admin';
+    }
+
+    // Checks if a document exists in the project's 'members' sub-collection using the user's UID
+    function isProjectMember(projectId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    // --- ADMIN OVERRIDE ---
+    // Admins have full access to all documents across the database.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // --- PROJECT SCOPE ---
+    match /projects/{projectId} {
+      
+      // Allow any signed-in user to see the project list and basic metadata.
+      // This is necessary so the app can 'get' the project before the user is confirmed as a member.
+      allow list, get: if isSignedIn();
+      
+      // Project metadata updates (like changing address or status)
+      allow update: if isProjectMember(projectId);
+
+      // 1. Dashboard Summaries
+      // Includes the main 'summary' doc and individual SubActivitySummaries
+      match /dashboards/{docId} {
+        allow read, list: if isProjectMember(projectId);
+        // Supports atomic increments for pendingWork and doneWork
+        allow write: if isProjectMember(projectId);
+      }
+
+      // 2. Daily Reports & Items
+      // According to reports.md, these are created by Engineers and approved by Managers
+      match /daily_reports/{reportId} {
+        allow read, list, create: if isProjectMember(projectId);
+        allow update: if isProjectMember(projectId); // Required for Approval status change
+        
+        match /items/{itemId} {
+          allow read, list, create: if isProjectMember(projectId);
+        }
+      }
+
+      // 3. Project Members (Fixes the "Catch-22" and Migration)
+      // We allow reading/listing so the app can verify membership, 
+      // and 'write' for the Migration Tool to fix random IDs to UIDs.
+      match /members/{memberId} {
+        allow read, list: if isSignedIn();
+        allow write, delete: if isSignedIn(); 
+      }
+
+      // 4. Activities, Sub-activities, and Zones
+      // Essential for the "Daily Progress" page staging and report review
+      match /activities/{activityId} {
+        allow read, list: if isSignedIn();
+        
+        match /subactivities/{subActivityId} {
+           allow read, list: if isSignedIn();
+        }
+      }
+
+      match /zones/{zoneId} {
+        allow read, list: if isProjectMember(projectId);
+      }
+    }
+
+    // --- GLOBAL DATA ---
+
+    match /users/{userId} {
+      // Allow reading users so the Migration Tool can map Names to UIDs.
+      allow read, list: if isSignedIn();
+      // Users can only manage their own profile.
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+    }
+    
+    match /equipment/{equipmentId} {
+      allow read, list: if isSignedIn();
+    }
+
+    match /units/{unitId} {
+      allow read: if isSignedIn();
+    }
+
+    // --- COLLECTION GROUPS ---
+    // Used if you need to query all dashboards across all projects.
+    match /{path=**}/dashboards/{docId} {
+      allow read, list: if isSignedIn(); 
+    }
+  }
+}
