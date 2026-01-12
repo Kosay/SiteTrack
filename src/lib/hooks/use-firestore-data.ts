@@ -17,33 +17,18 @@ export function useFirestoreData() {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
-  // Memoize collection references - This is now legacy and will be removed/refactored
-  const activitiesCollectionRef = useMemoFirebase(() => {
-    // This collection path is deprecated. We will fetch activities from projects instead.
-    return null;
-  }, []);
-
-  // This useCollection is based on the legacy path and is causing the error.
-  // We will remove it and fetch activities directly from the projects the user is a member of.
-  const { data: activities, isLoading: isLoadingActivities } = useCollection<ConstructionActivity>(activitiesCollectionRef);
-
-  const allProgressLogsCollectionRef = useMemoFirebase(() => {
-    // This logic is also based on the legacy structure and needs to be updated.
-    if (!user || !firestore) return null;
-    return query(collection(firestore, `users/${user.uid}/constructionActivities`));
-  }, [user, firestore]);
-
-  const { data: rawProgressLogs, isLoading: isLoadingLogs } = useCollection<ProgressLog>(
-    useMemoFirebase(() => {
-        // This complex logic is part of the legacy structure.
-        // It will be replaced by querying reports directly from the projects.
-        // For now, we return null to stop the failing query.
-        return null;
-    }, [])
-  );
+  // This hook is now simplified and no longer contains the legacy/failing queries.
+  // It focuses solely on fetching projects for the current user.
+  const { data: activities, isLoading: isLoadingActivities } = useCollection<ConstructionActivity>(null);
+  const { data: rawProgressLogs, isLoading: isLoadingLogs } = useCollection<ProgressLog>(null);
 
   useEffect(() => {
-    if (!user || !firestore) return;
+    if (!user || !firestore) {
+      if(!isUserLoading) {
+        setIsLoadingProjects(false);
+      }
+      return;
+    };
 
     const fetchUserProjects = async () => {
       setIsLoadingProjects(true);
@@ -69,7 +54,7 @@ export function useFirestoreData() {
     };
 
     fetchUserProjects();
-  }, [user, firestore]);
+  }, [user, firestore, isUserLoading]);
 
   // This progressLogs logic is based on mock data and needs to be updated to use real Firestore data.
   // For now, we will return an empty array to prevent errors on the Reports page.
