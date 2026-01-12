@@ -132,12 +132,13 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
   const { data: assignedEquipment, isLoading: isLoadingEquipment } = useCollection<Equipment>(equipmentQuery);
 
   const subActivitiesQuery = useMemoFirebase(() => {
+      if (!userProjects || userProjects.length === 0) return null;
       const projectIds = userProjects.map(p => p.id);
-      if (projectIds.length === 0) return null;
+      
       return query(
         collectionGroup(firestore, 'dashboards'), 
-        where('projectId', 'in', projectIds),
-        where('BoQ', '!=', '')
+        where('__name__', '!=', 'summary'), // Exclude the main summary document
+        where('projectId', 'in', projectIds)
       );
   }, [firestore, userProjects]);
 
@@ -221,7 +222,7 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
               </div>
               <div className="w-full md:w-64">
                 <Label>Filter by Project</Label>
-                 <Select onValueChange={(value) => setSelectedProject(value === 'all' ? null : value)}>
+                 <Select onValueChange={(value) => setSelectedProject(value === 'all' ? null : value)} defaultValue="all">
                     <SelectTrigger>
                         <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
