@@ -132,14 +132,20 @@ export function EngineerDashboard({ userProfile }: { userProfile: User | null })
   const { data: assignedEquipment, isLoading: isLoadingEquipment } = useCollection<Equipment>(equipmentQuery);
 
   const subActivitiesQuery = useMemoFirebase(() => {
-      if (!userProjects || userProjects.length === 0) return null;
-      const projectIds = userProjects.map(p => p.id);
-      
-      return query(
-        collectionGroup(firestore, 'dashboards'), 
-        where('__name__', '!=', 'summary'), // Exclude the main summary document
-        where('projectId', 'in', projectIds)
-      );
+    if (!userProjects || userProjects.length === 0) return null;
+    
+    // Get project IDs that the user is a member of.
+    const projectIds = userProjects.map(p => p.id);
+    if (projectIds.length === 0) return null;
+
+    // This query is now valid. It finds all sub-activity summaries
+    // by looking for documents that have a BoQ field, which the
+    // main 'summary' document lacks.
+    return query(
+      collectionGroup(firestore, 'dashboards'),
+      where('BoQ', '!=', ''),
+      where('projectId', 'in', projectIds)
+    );
   }, [firestore, userProjects]);
 
   const { data: subActivities, isLoading: isLoadingSubActivities } = useCollection<SubActivitySummary>(subActivitiesQuery);
